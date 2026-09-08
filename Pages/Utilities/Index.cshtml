@@ -1,0 +1,571 @@
+@page
+@model RentalApp.Pages.Utilities.IndexModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Utilities";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Utilities</h2>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" id="openCategoryModalBtn">+ Add Utility Category</button>
+        <button type="button" class="btn btn-primary" id="openCustomerModalBtn">+ Add Utility Customer</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.LastReadingActionMessage))
+{
+    <div class="alert alert-success">@Model.LastReadingActionMessage</div>
+}
+
+<form method="post" asp-page-handler="CreateReading" class="card app-card p-3 mb-3">
+    <h5 class="app-section-title mb-2">Record Meter Reading & Generate Bill</h5>
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="row">
+        <div class="col-md-3 mb-2">
+            <label asp-for="ReadingInput.UtilityCustomerId" class="form-label">Customer</label>
+            <select asp-for="ReadingInput.UtilityCustomerId" asp-items="Model.ReadingCustomerOptions" class="form-select"></select>
+            <span asp-validation-for="ReadingInput.UtilityCustomerId" class="text-danger"></span>
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="ReadingInput.UtilityTypeId" class="form-label">Utility Type</label>
+            <select asp-for="ReadingInput.UtilityTypeId" asp-items="Model.UtilityTypeOptions" class="form-select"></select>
+            <span asp-validation-for="ReadingInput.UtilityTypeId" class="text-danger"></span>
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="ReadingInput.ReadingDate" class="form-label"></label>
+            <input asp-for="ReadingInput.ReadingDate" class="form-control" type="date" />
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="ReadingInput.ReadingValue" class="form-label"></label>
+            <input asp-for="ReadingInput.ReadingValue" class="form-control" type="number" min="0" step="0.0001" />
+            <span asp-validation-for="ReadingInput.ReadingValue" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Reading & Generate Bill</button>
+    </div>
+</form>
+
+<div class="card app-card card-body mb-3">
+    <h5 class="app-section-title mb-2">Utility Categories</h5>
+    <div class="table-responsive">
+        <table class="table app-grid table-sm table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Categories.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3" class="text-center text-muted">No utility categories yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var category in Model.Categories)
+                    {
+                        <tr>
+                            <td>@category.Name</td>
+                            <td>@(category.IsActive ? "Active" : "Inactive")</td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card app-card card-body mb-3">
+    <h5 class="app-section-title mb-2">Utility Customers</h5>
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Customer Type</th>
+                <th>Tenant Name</th>
+                <th>Unit</th>
+                <th>Utility Category</th>
+                <th>Amount to Pay</th>
+                <th>Due Day</th>
+                <th style="width: 110px;" class="text-end">Payments</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Customers.Count == 0)
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted">No utility customers yet.</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var customer in Model.Customers)
+                {
+                    <tr>
+                        <td>@customer.Name</td>
+                        <td>@customer.CustomerType</td>
+                        <td>@(string.IsNullOrWhiteSpace(customer.TenantName) ? "None" : customer.TenantName)</td>
+                        <td>@(string.IsNullOrWhiteSpace(customer.RoomLabel) ? "None" : customer.RoomLabel)</td>
+                        <td>@(string.IsNullOrWhiteSpace(customer.CategoryName) ? "None" : customer.CategoryName)</td>
+                        <td>@(customer.AmountToPay?.ToString("N2") ?? "-")</td>
+                        <td>@(customer.DueDayOfMonth?.ToString() ?? "-")</td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1 justify-content-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary utility-payments-toggle" data-bs-toggle="collapse" data-bs-target="#payments-@customer.Id" aria-expanded="@(Model.ExpandedCustomerId == customer.Id ? "true" : "false")" aria-controls="payments-@customer.Id">Payments</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary open-customer-edit-btn" data-customer='@Html.Raw(JsonSerializer.Serialize(customer))'>Edit</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr class="collapse @(Model.ExpandedCustomerId == customer.Id ? "show" : null)" id="payments-@customer.Id" data-customer-id="@customer.Id">
+                        <td colspan="8" class="bg-light">
+                            <div class="p-2">
+                                <strong class="d-block mb-2">Payment Transaction History</strong>
+
+                                @{
+                                    var history = Model.PaymentHistoryByCustomerId.TryGetValue(customer.Id, out var payments) ? payments : [];
+                                    var unpaid = Model.UnpaidBillsByCustomerId.TryGetValue(customer.Id, out var bills) ? bills : [];
+                                }
+
+                                <div class="card app-card card-body mb-3 bg-white">
+                                    <strong class="app-section-title mb-2">Paid History</strong>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date Paid</th>
+                                                    <th>Utility</th>
+                                                    <th>Period</th>
+                                                    <th>Amount Paid</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (history.Count == 0)
+                                                {
+                                                    <tr>
+                                                        <td colspan="5" class="text-center text-muted">No payment transactions yet.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var payment in history)
+                                                    {
+                                                        <tr>
+                                                            <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
+                                                            <td>@payment.UtilityTypeName</td>
+                                                            <td>@payment.BillingPeriod</td>
+                                                            <td>@payment.Amount.ToString("N2")</td>
+                                                            <td>@(payment.IsVoided ? "Voided" : "Paid")</td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="card app-card card-body bg-white">
+                                    <strong class="app-section-title mb-2">Unpaid Utility Bills</strong>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Period</th>
+                                                    <th>Utility</th>
+                                                    <th>Amount</th>
+                                                    <th>Paid</th>
+                                                    <th>Unpaid</th>
+                                                    <th style="width: 140px;">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (unpaid.Count == 0)
+                                                {
+                                                    <tr>
+                                                        <td colspan="6" class="text-center text-muted">No unpaid bills.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var bill in unpaid)
+                                                    {
+                                                        <tr>
+                                                            <td>@bill.BillingPeriod</td>
+                                                            <td>@bill.UtilityTypeName</td>
+                                                            <td>@bill.Amount.ToString("N2")</td>
+                                                            <td>@bill.Paid.ToString("N2")</td>
+                                                            <td>@bill.Balance.ToString("N2")</td>
+                                                            <td>
+                                                                <button type="button"
+                                                                        class="btn btn-sm btn-primary open-utility-payment-modal-btn"
+                                                                        data-customer-id="@customer.Id"
+                                                                        data-bill-id="@bill.UtilityBillId"
+                                                                        data-balance="@bill.Balance"
+                                                                        data-customer-name="@customer.Name"
+                                                                        data-period="@bill.BillingPeriod"
+                                                                        data-utility="@bill.UtilityTypeName">
+                                                                    Add Payment
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="AddCategory">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Utility Category</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <div class="mb-2">
+                        <label asp-for="CategoryInput.Name" class="form-label">Category Name</label>
+                        <input asp-for="CategoryInput.Name" class="form-control" id="categoryNameInput" />
+                        <span asp-validation-for="CategoryInput.Name" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addUtilityPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="AddUtilityPayment">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input type="hidden" asp-for="AddUtilityPaymentInput.UtilityCustomerId" id="utilityPaymentCustomerIdInput" />
+                    <input type="hidden" asp-for="AddUtilityPaymentInput.UtilityBillId" id="utilityPaymentBillIdInput" />
+
+                    <div class="mb-2">
+                        <label class="form-label">Customer</label>
+                        <input type="text" class="form-control" id="utilityPaymentCustomerLabel" readonly />
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Bill</label>
+                        <input type="text" class="form-control" id="utilityPaymentBillLabel" readonly />
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddUtilityPaymentInput.Amount" class="form-label"></label>
+                        <input asp-for="AddUtilityPaymentInput.Amount" class="form-control" type="number" min="0.01" step="0.01" id="utilityPaymentAmountInput" />
+                        <span asp-validation-for="AddUtilityPaymentInput.Amount" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddUtilityPaymentInput.PaymentDate" class="form-label"></label>
+                        <input asp-for="AddUtilityPaymentInput.PaymentDate" class="form-control" type="date" id="utilityPaymentDateInput" />
+                        <span asp-validation-for="AddUtilityPaymentInput.PaymentDate" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddUtilityPaymentInput.ReferenceNumber" class="form-label"></label>
+                        <input asp-for="AddUtilityPaymentInput.ReferenceNumber" class="form-control" id="utilityPaymentReferenceInput" />
+                        <span asp-validation-for="AddUtilityPaymentInput.ReferenceNumber" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddUtilityPaymentInput.Notes" class="form-label"></label>
+                        <textarea asp-for="AddUtilityPaymentInput.Notes" class="form-control" rows="2" id="utilityPaymentNotesInput"></textarea>
+                        <span asp-validation-for="AddUtilityPaymentInput.Notes" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="customerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="Save">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="customerModalTitle">Utility Customer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="Input.Id" type="hidden" id="customerIdInput" />
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="Input.Name" class="form-label"></label>
+                            <input asp-for="Input.Name" class="form-control" id="customerNameInput" />
+                            <span asp-validation-for="Input.Name" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="Input.CustomerType" class="form-label"></label>
+                            <select asp-for="Input.CustomerType" asp-items="Model.CustomerTypeOptions" class="form-select" id="customerTypeInput"></select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label asp-for="Input.TenantId" class="form-label">Tenant Name</label>
+                            <select asp-for="Input.TenantId" asp-items="Model.TenantOptions" class="form-select" id="customerTenantInput"></select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label asp-for="Input.RoomId" class="form-label">Unit</label>
+                            <select asp-for="Input.RoomId" asp-items="Model.RoomOptions" class="form-select" id="customerRoomInput"></select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label asp-for="Input.UtilityCategoryId" class="form-label">Utility Category</label>
+                            <select asp-for="Input.UtilityCategoryId" asp-items="Model.CategoryOptions" class="form-select" id="customerCategoryInput"></select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="Input.AmountToPay" class="form-label">Amount to Pay</label>
+                            <input asp-for="Input.AmountToPay" class="form-control" type="number" min="0.01" step="0.01" id="customerAmountInput" />
+                            <span asp-validation-for="Input.AmountToPay" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="Input.DueDayOfMonth" class="form-label">Due Date (Day of Month)</label>
+                            <input asp-for="Input.DueDayOfMonth" class="form-control" type="number" min="1" max="28" id="customerDueDayInput" />
+                            <span asp-validation-for="Input.DueDayOfMonth" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const customerModal = new bootstrap.Modal(document.getElementById('customerModal'));
+        const categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+        const addUtilityPaymentModal = new bootstrap.Modal(document.getElementById('addUtilityPaymentModal'));
+
+        const customerTypeInput = document.getElementById('customerTypeInput');
+        const customerTenantInput = document.getElementById('customerTenantInput');
+        const customerRoomInput = document.getElementById('customerRoomInput');
+        const customerCategoryInput = document.getElementById('customerCategoryInput');
+
+        const tenantDefaultRoomMap = @Html.Raw(JsonSerializer.Serialize(Model.TenantDefaultRoomMap));
+
+        function isExternalOrOther(customerTypeValue) {
+            return customerTypeValue === '3' || customerTypeValue === '4';
+        }
+
+        function applyCustomerTypeRules() {
+            const customerType = customerTypeInput.value;
+            const disableTenantRoom = isExternalOrOther(customerType);
+
+            customerTenantInput.disabled = disableTenantRoom;
+            customerRoomInput.disabled = disableTenantRoom;
+
+            if (disableTenantRoom) {
+                customerTenantInput.value = '';
+                customerRoomInput.value = '';
+            }
+        }
+
+        function applyTenantRoomRulesFromTenantSelection() {
+            const tenantId = customerTenantInput.value;
+            if (!tenantId) {
+                customerRoomInput.disabled = false;
+                return;
+            }
+
+            if (tenantDefaultRoomMap[tenantId] != null) {
+                customerRoomInput.value = tenantDefaultRoomMap[tenantId].toString();
+            }
+
+            customerRoomInput.disabled = true;
+        }
+
+        function applyTenantRoomRulesFromRoomSelection() {
+            const roomId = customerRoomInput.value;
+            if (roomId) {
+                customerTenantInput.value = '';
+                customerTenantInput.disabled = true;
+                return;
+            }
+
+            if (!isExternalOrOther(customerTypeInput.value)) {
+                customerTenantInput.disabled = false;
+            }
+        }
+
+        function applyAllRules() {
+            applyCustomerTypeRules();
+
+            if (!isExternalOrOther(customerTypeInput.value)) {
+                if (customerTenantInput.value) {
+                    applyTenantRoomRulesFromTenantSelection();
+                }
+                else if (customerRoomInput.value) {
+                    applyTenantRoomRulesFromRoomSelection();
+                }
+                else {
+                    customerTenantInput.disabled = false;
+                    customerRoomInput.disabled = false;
+                }
+            }
+        }
+
+        function resetCustomerModal() {
+            document.getElementById('customerModalTitle').textContent = 'Add Utility Customer';
+            document.getElementById('customerIdInput').value = '0';
+            document.getElementById('customerNameInput').value = '';
+            customerTypeInput.value = '4';
+            customerTenantInput.value = '';
+            customerRoomInput.value = '';
+            customerCategoryInput.value = '';
+            document.getElementById('customerAmountInput').value = '';
+            document.getElementById('customerDueDayInput').value = '';
+            customerTenantInput.disabled = false;
+            customerRoomInput.disabled = false;
+            applyAllRules();
+        }
+
+        customerTypeInput?.addEventListener('change', () => {
+            applyAllRules();
+        });
+
+        customerTenantInput?.addEventListener('change', () => {
+            if (customerTenantInput.value) {
+                applyTenantRoomRulesFromTenantSelection();
+                customerTenantInput.disabled = false;
+            } else {
+                customerRoomInput.disabled = false;
+            }
+        });
+
+        customerRoomInput?.addEventListener('change', () => {
+            applyTenantRoomRulesFromRoomSelection();
+            if (!customerRoomInput.value && !isExternalOrOther(customerTypeInput.value)) {
+                customerTenantInput.disabled = false;
+            }
+        });
+
+        document.getElementById('openCategoryModalBtn')?.addEventListener('click', () => {
+            document.getElementById('categoryNameInput').value = '';
+            categoryModal.show();
+        });
+
+        document.getElementById('openCustomerModalBtn')?.addEventListener('click', () => {
+            resetCustomerModal();
+            customerModal.show();
+        });
+
+        document.querySelectorAll('.open-customer-edit-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const customer = JSON.parse(this.dataset.customer);
+                document.getElementById('customerModalTitle').textContent = 'Edit Utility Customer';
+                document.getElementById('customerIdInput').value = customer.Id ?? customer.id ?? 0;
+                document.getElementById('customerNameInput').value = customer.Name ?? customer.name ?? '';
+                customerTypeInput.value = ((customer.CustomerType ?? customer.customerType ?? 4)).toString();
+                customerTenantInput.value = customer.TenantId ?? customer.tenantId ?? '';
+                customerRoomInput.value = customer.RoomId ?? customer.roomId ?? '';
+                customerCategoryInput.value = customer.UtilityCategoryId ?? customer.utilityCategoryId ?? '';
+                document.getElementById('customerAmountInput').value = customer.AmountToPay ?? customer.amountToPay ?? customer.DefaultRate ?? customer.defaultRate ?? '';
+                document.getElementById('customerDueDayInput').value = customer.DueDayOfMonth ?? customer.dueDayOfMonth ?? '';
+                customerTenantInput.disabled = false;
+                customerRoomInput.disabled = false;
+                applyAllRules();
+                customerModal.show();
+            });
+        });
+
+        document.querySelectorAll('.open-utility-payment-modal-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const customerId = this.dataset.customerId || '';
+                const billId = this.dataset.billId || '';
+                const balance = this.dataset.balance || '';
+                const customerName = this.dataset.customerName || '';
+                const period = this.dataset.period || '';
+                const utility = this.dataset.utility || '';
+
+                document.getElementById('utilityPaymentCustomerIdInput').value = customerId;
+                document.getElementById('utilityPaymentBillIdInput').value = billId;
+                document.getElementById('utilityPaymentAmountInput').value = balance;
+                document.getElementById('utilityPaymentCustomerLabel').value = customerName;
+                document.getElementById('utilityPaymentBillLabel').value = `${utility} - ${period}`;
+                document.getElementById('utilityPaymentDateInput').value = new Date().toISOString().split('T')[0];
+                document.getElementById('utilityPaymentReferenceInput').value = '';
+                document.getElementById('utilityPaymentNotesInput').value = '';
+                addUtilityPaymentModal.show();
+            });
+        });
+
+        const utilityPaymentRows = Array.from(document.querySelectorAll('tr.collapse[data-customer-id]'));
+
+        function closeOtherUtilityPaymentRows(currentTargetSelector) {
+            utilityPaymentRows.forEach(row => {
+                const selector = `#${row.id}`;
+                if (selector !== currentTargetSelector && row.classList.contains('show')) {
+                    bootstrap.Collapse.getOrCreateInstance(row, { toggle: false }).hide();
+                }
+            });
+        }
+
+        document.querySelectorAll('.utility-payments-toggle').forEach(button => {
+            button.addEventListener('click', function () {
+                const targetSelector = this.getAttribute('data-bs-target');
+                if (!targetSelector) return;
+                closeOtherUtilityPaymentRows(targetSelector);
+            });
+        });
+
+        if (@Model.ShowModal.ToString().ToLowerInvariant()) {
+            applyAllRules();
+            customerModal.show();
+        }
+
+        if (@Model.ShowCategoryModal.ToString().ToLowerInvariant()) {
+            categoryModal.show();
+        }
+
+        if (@Model.ShowAddPaymentModal.ToString().ToLowerInvariant()) {
+            addUtilityPaymentModal.show();
+        }
+    </script>
+}

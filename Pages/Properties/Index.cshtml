@@ -1,0 +1,59 @@
+@page
+@model RentalApp.Pages.Properties.IndexModel
+@{
+    ViewData["Title"] = "Properties";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Properties</h2>
+    <a class="btn btn-primary" asp-page="/Properties/Create">+ Add Property</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-6">
+        <input asp-for="Search" class="form-control" placeholder="Search by name or address" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Search</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.PagedItems.Items)
+            {
+                <tr>
+                    <td>@item.Name</td>
+                    <td>@item.Address</td>
+                    <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Properties/Edit" asp-route-id="@item.Id">Edit</a>
+                        @if (item.IsActive)
+                        {
+                            <form method="post" asp-page-handler="Deactivate" asp-route-id="@item.Id" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this property?');">Deactivate</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Properties/Index",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>()
+})" />

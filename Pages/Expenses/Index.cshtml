@@ -1,0 +1,315 @@
+@page
+@model RentalApp.Pages.Expenses.IndexModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Expenses";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Expense Categories</h2>
+    <button type="button" class="btn btn-primary" id="openCategoryModalBtn">+ Add Category</button>
+</div>
+
+<div class="card app-card card-body mb-4">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Active</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var category in Model.PagedCategories.Items)
+            {
+                <tr>
+                    <td>@category.Name</td>
+                    <td>@category.Description</td>
+                    <td>@(category.IsActive ? "Yes" : "No")</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary open-category-edit-btn"
+                                data-category='@Html.Raw(JsonSerializer.Serialize(category))'>Edit</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Expenses/Index",
+    PageParameterName = "CategoriesPageNumber",
+    PageNumber = Model.PagedCategories.PageNumber,
+    TotalPages = Model.PagedCategories.TotalPages,
+    RouteValues = new Dictionary<string, string>
+    {
+        ["FromDate"] = Model.FromDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+        ["ToDate"] = Model.ToDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+        ["CategoryId"] = Model.CategoryId?.ToString() ?? string.Empty,
+        ["ExpensesPageNumber"] = Model.ExpensesPageNumber.ToString()
+    }
+})" />
+
+<div class="page-header-block mt-4">
+    <h2 class="mb-0">Expenses</h2>
+    <button type="button" class="btn btn-primary" id="openExpenseModalBtn">+ Add Expense</button>
+</div>
+
+<form method="get" class="filter-bar row g-2 align-items-end">
+    <div class="col-md-3">
+        <label asp-for="FromDate" class="form-label"></label>
+        <input asp-for="FromDate" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label asp-for="ToDate" class="form-label"></label>
+        <input asp-for="ToDate" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label asp-for="CategoryId" class="form-label"></label>
+        <select asp-for="CategoryId" asp-items="Model.CategoryFilterOptions" class="form-select"></select>
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-outline-primary">Filter</button>
+    </div>
+</form>
+
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Property</th>
+                <th>Unit</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.PagedItems.Items)
+            {
+                <tr>
+                    <td>@item.ExpenseDate.ToString("yyyy-MM-dd")</td>
+                    <td>@item.PropertyName</td>
+                    <td>@(item.UnitNumber ?? "-")</td>
+                    <td>@item.CategoryName</td>
+                    <td>@item.Description</td>
+                    <td>@item.Amount.ToString("N2")</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary open-expense-edit-btn"
+                                data-expense='@Html.Raw(JsonSerializer.Serialize(item))'>Edit</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Expenses/Index",
+    PageParameterName = "ExpensesPageNumber",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>
+    {
+        ["FromDate"] = Model.FromDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+        ["ToDate"] = Model.ToDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+        ["CategoryId"] = Model.CategoryId?.ToString() ?? string.Empty,
+        ["CategoriesPageNumber"] = Model.CategoriesPageNumber.ToString()
+    }
+})" />
+
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="SaveCategory">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="categoryModalTitle">Expense Category</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="CategoryInput.Id" type="hidden" id="categoryIdInput" />
+                    <div class="mb-2">
+                        <label asp-for="CategoryInput.Name" class="form-label"></label>
+                        <input asp-for="CategoryInput.Name" class="form-control" id="categoryNameInput" />
+                        <span asp-validation-for="CategoryInput.Name" class="text-danger"></span>
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="CategoryInput.Description" class="form-label"></label>
+                        <textarea asp-for="CategoryInput.Description" class="form-control" rows="2" id="categoryDescriptionInput"></textarea>
+                        <span asp-validation-for="CategoryInput.Description" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="expenseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="SaveExpense">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="expenseModalTitle">Expense</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="ExpenseInput.Id" type="hidden" id="expenseIdInput" />
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="ExpenseInput.PropertyId" class="form-label"></label>
+                            <select asp-for="ExpenseInput.PropertyId" asp-items="Model.PropertyOptions" class="form-select" id="expensePropertyInput"></select>
+                            <span asp-validation-for="ExpenseInput.PropertyId" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="ExpenseInput.UnitId" class="form-label"></label>
+                            <select asp-for="ExpenseInput.UnitId" asp-items="Model.UnitOptions" class="form-select" id="expenseUnitInput"></select>
+                            <span asp-validation-for="ExpenseInput.UnitId" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="ExpenseInput.CategoryId" class="form-label"></label>
+                            <select asp-for="ExpenseInput.CategoryId" asp-items="Model.CategoryOptions" class="form-select" id="expenseCategoryInput"></select>
+                            <span asp-validation-for="ExpenseInput.CategoryId" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label asp-for="ExpenseInput.ExpenseDate" class="form-label"></label>
+                            <input asp-for="ExpenseInput.ExpenseDate" class="form-control" type="date" id="expenseDateInput" />
+                            <span asp-validation-for="ExpenseInput.ExpenseDate" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="ExpenseInput.Description" class="form-label"></label>
+                        <input asp-for="ExpenseInput.Description" class="form-control" id="expenseDescriptionInput" />
+                        <span asp-validation-for="ExpenseInput.Description" class="text-danger"></span>
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="ExpenseInput.Amount" class="form-label"></label>
+                        <input asp-for="ExpenseInput.Amount" class="form-control" type="number" step="0.01" min="0.01" id="expenseAmountInput" />
+                        <span asp-validation-for="ExpenseInput.Amount" class="text-danger"></span>
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="ExpenseInput.Notes" class="form-label"></label>
+                        <textarea asp-for="ExpenseInput.Notes" class="form-control" rows="2" id="expenseNotesInput"></textarea>
+                        <span asp-validation-for="ExpenseInput.Notes" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+        const expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
+        const expensePropertyInput = document.getElementById('expensePropertyInput');
+        const expenseUnitInput = document.getElementById('expenseUnitInput');
+        const unitPropertyMap = @Html.Raw(JsonSerializer.Serialize(Model.UnitPropertyMap));
+
+        function filterUnitsBySelectedProperty() {
+            const selectedPropertyId = parseInt(expensePropertyInput?.value || '0', 10);
+            const options = expenseUnitInput?.options || [];
+
+            for (const option of options) {
+                if (!option.value) {
+                    option.hidden = false;
+                    continue;
+                }
+
+                const unitId = parseInt(option.value, 10);
+                const propertyId = unitPropertyMap[unitId];
+                option.hidden = selectedPropertyId > 0 && propertyId !== selectedPropertyId;
+            }
+
+            const currentUnitId = parseInt(expenseUnitInput?.value || '0', 10);
+            if (currentUnitId > 0) {
+                const currentUnitProperty = unitPropertyMap[currentUnitId];
+                if (selectedPropertyId > 0 && currentUnitProperty !== selectedPropertyId) {
+                    expenseUnitInput.value = '';
+                }
+            }
+        }
+
+        expensePropertyInput?.addEventListener('change', filterUnitsBySelectedProperty);
+
+        document.getElementById('openCategoryModalBtn')?.addEventListener('click', () => {
+            document.getElementById('categoryModalTitle').textContent = 'Add Expense Category';
+            document.getElementById('categoryIdInput').value = '0';
+            document.getElementById('categoryNameInput').value = '';
+            document.getElementById('categoryDescriptionInput').value = '';
+            categoryModal.show();
+        });
+
+        document.querySelectorAll('.open-category-edit-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const category = JSON.parse(this.dataset.category);
+                document.getElementById('categoryModalTitle').textContent = 'Edit Expense Category';
+                document.getElementById('categoryIdInput').value = category.id ?? 0;
+                document.getElementById('categoryNameInput').value = category.name ?? '';
+                document.getElementById('categoryDescriptionInput').value = category.description ?? '';
+                categoryModal.show();
+            });
+        });
+
+        document.getElementById('openExpenseModalBtn')?.addEventListener('click', () => {
+            document.getElementById('expenseModalTitle').textContent = 'Add Expense';
+            document.getElementById('expenseIdInput').value = '0';
+            document.getElementById('expensePropertyInput').value = '';
+            document.getElementById('expenseUnitInput').value = '';
+            document.getElementById('expenseCategoryInput').value = '';
+            document.getElementById('expenseDescriptionInput').value = '';
+            document.getElementById('expenseAmountInput').value = '';
+            document.getElementById('expenseDateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('expenseNotesInput').value = '';
+            filterUnitsBySelectedProperty();
+            expenseModal.show();
+        });
+
+        document.querySelectorAll('.open-expense-edit-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const expense = JSON.parse(this.dataset.expense);
+                document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
+                document.getElementById('expenseIdInput').value = expense.id ?? 0;
+                document.getElementById('expensePropertyInput').value = expense.propertyId ?? '';
+                document.getElementById('expenseUnitInput').value = expense.unitId ?? '';
+                document.getElementById('expenseCategoryInput').value = expense.categoryId ?? '';
+                document.getElementById('expenseDescriptionInput').value = expense.description ?? '';
+                document.getElementById('expenseAmountInput').value = expense.amount ?? '';
+                document.getElementById('expenseDateInput').value = (expense.expenseDate ?? '').toString().substring(0, 10);
+                document.getElementById('expenseNotesInput').value = expense.notes ?? '';
+                filterUnitsBySelectedProperty();
+                expenseModal.show();
+            });
+        });
+
+        if (@Model.ShowCategoryModal.ToString().ToLowerInvariant()) {
+            categoryModal.show();
+        }
+
+        if (@Model.ShowExpenseModal.ToString().ToLowerInvariant()) {
+            filterUnitsBySelectedProperty();
+            expenseModal.show();
+        }
+    </script>
+}

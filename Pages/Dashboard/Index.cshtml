@@ -1,0 +1,174 @@
+@page
+@model RentalApp.Pages.Dashboard.IndexModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Dashboard";
+    var months = Enumerable.Range(1, 12).ToList();
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Dashboard</h2>
+    <span class="text-muted">@Model.DisplayName</span>
+</div>
+
+<form method="get" class="filter-bar row g-2 align-items-end">
+    <div class="col-md-3">
+        <label asp-for="Year" class="form-label">Year</label>
+        <input asp-for="Year" class="form-control" min="2026" />
+        <span asp-validation-for="Year" class="text-danger"></span>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Filter</button>
+    </div>
+</form>
+
+<div class="card app-card mb-4">
+    <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Apartment Tenants Matrix - @Model.Year</h5>
+        <small class="text-muted">Yearly Rent and Deposit Overview</small>
+    </div>
+    <div class="table-responsive matrix-scroll-wrap">
+        <table class="table app-grid table-bordered table-sm table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th rowspan="2" class="sticky-first-col">Room/Unit</th>
+                @foreach (var m in months)
+                {
+                    <th colspan="2" class="text-center">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</th>
+                }
+                <th rowspan="2" class="text-center">Total</th>
+            </tr>
+            <tr>
+                @foreach (var _ in months)
+                {
+                    <th class="text-center">RENT</th>
+                    <th class="text-center">DEPOSIT</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Summary.ApartmentTenantGrid)
+            {
+                <tr>
+                    <td class="fw-semibold sticky-first-col">@row.RoomUnitLabel</td>
+                    @foreach (var m in months)
+                    {
+                        var rent = row.RentByMonth.GetValueOrDefault(m);
+                        var deposit = row.DepositByMonth.GetValueOrDefault(m);
+                        <td class="text-end">@(rent == 0 ? "-" : rent.ToString("N2"))</td>
+                        <td class="text-end">@(deposit == 0 ? "-" : deposit.ToString("N2"))</td>
+                    }
+                    <td class="text-end fw-semibold bg-light">@((row.TotalRent + row.TotalDeposit).ToString("N2"))</td>
+                </tr>
+            }
+        </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer bg-white border-0 pt-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="app-kpi">
+                    <small class="label d-block">Total Income</small>
+                    <strong class="value">@((Model.Summary.CollectedRent + Model.Summary.UtilityIncome).ToString("N2"))</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card app-card mb-4">
+    <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Expenses - @Model.Year</h5>
+        <small class="text-muted">Expense breakdown under Apartment Tenants Matrix</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table app-grid table-bordered table-sm table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Expense Category</th>
+                    <th>Property | Unit</th>
+                    <th class="text-end">Amount</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Summary.ExpenseGrid.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No expenses found for this year.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var expense in Model.Summary.ExpenseGrid)
+                    {
+                        <tr>
+                            <td>@expense.ExpenseCategory</td>
+                            <td>@expense.PropertyUnit</td>
+                            <td class="text-end">@expense.Amount.ToString("N2")</td>
+                            <td>@expense.Date.ToString("yyyy-MM-dd")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer bg-white border-0 pt-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="app-kpi">
+                    <small class="label d-block">Total Expense</small>
+                    <strong class="value">@Model.Summary.TotalExpenses.ToString("N2")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card app-card">
+    <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Utility Matrix - @Model.Year</h5>
+        <small class="text-muted">Customer Utility Totals by Month</small>
+    </div>
+    <div class="table-responsive matrix-scroll-wrap">
+        <table class="table app-grid table-bordered table-sm table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Customers (Tenant/External)</th>
+                @foreach (var m in months)
+                {
+                    <th class="text-center">@CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(m)</th>
+                }
+                <th class="text-center">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Summary.UtilityCustomerGrid)
+            {
+                <tr>
+                    <td class="fw-semibold">@row.CustomerLabel</td>
+                    @foreach (var m in months)
+                    {
+                        var amount = row.AmountByMonth.GetValueOrDefault(m);
+                        <td class="text-end">@(amount == 0 ? "-" : amount.ToString("N2"))</td>
+                    }
+                    <td class="text-end fw-semibold">@row.TotalAmount.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer bg-white border-0 pt-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="app-kpi">
+                    <small class="label d-block">Total Utility Income</small>
+                    <strong class="value">@Model.Summary.UtilityIncome.ToString("N2")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

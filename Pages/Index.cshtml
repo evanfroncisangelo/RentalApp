@@ -1,0 +1,22 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h1 class="display-5">Rental Application</h1>
+    <p class="lead">Simple rental management foundation with authentication.</p>
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <a class="btn btn-primary" asp-page="/Dashboard/Index">Go to Dashboard</a>
+    }
+    else
+    {
+        <div class="d-flex justify-content-center gap-2">
+            <a class="btn btn-primary" asp-page="/Auth/Login">Login</a>
+            <a class="btn btn-outline-primary" asp-page="/Auth/Register">Create Account</a>
+        </div>
+    }
+</div>

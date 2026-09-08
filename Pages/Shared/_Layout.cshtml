@@ -1,0 +1,102 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - RentalApp</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/RentalApp.styles.css" asp-append-version="true" />
+</head>
+<body>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+        var isDashboard = currentPage.StartsWith("/Dashboard", global::System.StringComparison.OrdinalIgnoreCase);
+        var isRooms = currentPage.StartsWith("/ApartmentTenants", global::System.StringComparison.OrdinalIgnoreCase)
+                      || currentPage.StartsWith("/PropertiesUnits", global::System.StringComparison.OrdinalIgnoreCase)
+                      || currentPage.StartsWith("/Leases", global::System.StringComparison.OrdinalIgnoreCase)
+                      || currentPage.StartsWith("/Tenants", global::System.StringComparison.OrdinalIgnoreCase)
+                      || currentPage.StartsWith("/Units", global::System.StringComparison.OrdinalIgnoreCase);
+        var isExpenses = currentPage.StartsWith("/Expenses", global::System.StringComparison.OrdinalIgnoreCase)
+                         || currentPage.StartsWith("/ExpenseCategories", global::System.StringComparison.OrdinalIgnoreCase);
+        var isUtilities = currentPage.StartsWith("/Utilities", global::System.StringComparison.OrdinalIgnoreCase);
+        var isInvoices = currentPage.StartsWith("/Invoices", global::System.StringComparison.OrdinalIgnoreCase);
+
+        <div class="app-layout" id="appLayoutRoot">
+            <aside class="app-sidebar" id="appSidebar">
+                <div class="app-sidebar-header">
+                    <a class="app-brand" asp-area="" asp-page="/Dashboard/Index">BOARDING HOUSE</a>
+                </div>
+
+                <nav class="app-sidebar-nav">
+                    <a class="app-nav-link @(isDashboard ? "active" : null)" asp-page="/Dashboard/Index">Dashboard</a>
+                    <a class="app-nav-link @(isRooms ? "active" : null)" asp-page="/ApartmentTenants/Index">Apartments and Tenants</a>
+                    <a class="app-nav-link @(isExpenses ? "active" : null)" asp-page="/Expenses/Index">Expenses</a>
+                    <a class="app-nav-link @(isUtilities ? "active" : null)" asp-page="/Utilities/Index">Utilities</a>
+                    <a class="app-nav-link @(isInvoices ? "active" : null)" asp-page="/Invoices/Index">Invoices</a>
+                </nav>
+
+                <div class="app-sidebar-footer">
+                    <div class="app-user-name">@User.Identity?.Name</div>
+                    <form method="post" asp-page="/Auth/Logout" class="d-grid mt-2">
+                        <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                    </form>
+                </div>
+            </aside>
+
+            <div class="app-main">
+                <header class="app-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary app-sidebar-toggle" id="appSidebarToggle" aria-label="Toggle menu">☰</button>
+                        <h1 class="app-page-title mb-0">@ViewData["Title"]</h1>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="text-muted small d-none d-md-inline">@DateTime.Now.ToString("MMMM yyyy")</span>
+                    </div>
+                </header>
+
+                <main role="main" class="app-content">
+                    @RenderBody()
+                </main>
+            </div>
+        </div>
+    }
+    else
+    {
+        <header>
+            <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light app-topbar mb-3">
+                <div class="container">
+                    <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Dashboard/Index">RentalApp</a>
+                    <div class="d-flex align-items-center gap-2">
+                        <a class="btn btn-outline-primary btn-sm" asp-page="/Auth/Login">Login</a>
+                        <a class="btn btn-primary btn-sm" asp-page="/Auth/Register">Register</a>
+                    </div>
+                </div>
+            </nav>
+        </header>
+        <div class="container app-shell">
+            <main role="main" class="pb-3">
+                @RenderBody()
+            </main>
+        </div>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function () {
+            const toggle = document.getElementById('appSidebarToggle');
+            const root = document.getElementById('appLayoutRoot');
+            if (!toggle || !root) return;
+
+            toggle.addEventListener('click', function () {
+                root.classList.toggle('sidebar-open');
+            });
+        })();
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

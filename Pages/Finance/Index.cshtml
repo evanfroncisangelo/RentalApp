@@ -1,0 +1,99 @@
+@page
+@model RentalApp.Pages.Finance.IndexModel
+@{
+    ViewData["Title"] = "Financial Summary";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Financial Summary</h2>
+</div>
+
+<form method="get" class="filter-bar row g-2 align-items-end mb-4">
+    <div class="col-md-2">
+        <label asp-for="Year" class="form-label"></label>
+        <input asp-for="Year" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="Month" class="form-label"></label>
+        <input asp-for="Month" class="form-control" />
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-outline-primary">Load</button>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Expected Rent</div><div class="value">@Model.Summary.ExpectedRent.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Collected Rent</div><div class="value">@Model.Summary.CollectedRent.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Outstanding Rent</div><div class="value">@Model.Summary.OutstandingRent.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Total Expenses</div><div class="value">@Model.Summary.TotalExpenses.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Utility Income</div><div class="value">@Model.Summary.UtilityIncome.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Utility Expenses</div><div class="value">@Model.Summary.UtilityExpenses.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Outstanding Utility Bills</div><div class="value">@Model.Summary.OutstandingUtilityBills.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Total Utility Consumption</div><div class="value">@Model.Summary.TotalUtilityConsumption.ToString("N4")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Utility Net</div><div class="value">@Model.Summary.UtilityNet.ToString("N2")</div></div></div>
+    <div class="col-md-4"><div class="app-kpi"><div class="label">Net Profit</div><div class="value">@Model.Summary.NetProfit.ToString("N2")</div></div></div>
+</div>
+
+<h4 class="app-section-title">Monthly History</h4>
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Period</th>
+                <th>Expected</th>
+                <th>Collected</th>
+                <th>Outstanding</th>
+                <th>Expenses</th>
+                <th>Utility Income</th>
+                <th>Utility Expense</th>
+                <th>Utility Net</th>
+                <th>Utility Outstanding</th>
+                <th>Utility Consumption</th>
+                <th>Net Profit</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.PagedHistory.Items.Count == 0)
+            {
+                <tr>
+                    <td colspan="11">
+                        <div class="empty-state">
+                            <span class="empty-state-title">No financial history available</span>
+                            No monthly records were found for the selected period.
+                        </div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Model.PagedHistory.Items)
+                {
+                    <tr>
+                        <td>@item.Year-@item.Month.ToString("00")</td>
+                        <td>@item.ExpectedRent.ToString("N2")</td>
+                        <td>@item.CollectedRent.ToString("N2")</td>
+                        <td>@item.OutstandingRent.ToString("N2")</td>
+                        <td>@item.TotalExpenses.ToString("N2")</td>
+                        <td>@item.UtilityIncome.ToString("N2")</td>
+                        <td>@item.UtilityExpenses.ToString("N2")</td>
+                        <td>@item.UtilityNet.ToString("N2")</td>
+                        <td>@item.OutstandingUtilityBills.ToString("N2")</td>
+                        <td>@item.TotalUtilityConsumption.ToString("N4")</td>
+                        <td>@item.NetProfit.ToString("N2")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Finance/Index",
+    PageNumber = Model.PagedHistory.PageNumber,
+    TotalPages = Model.PagedHistory.TotalPages,
+    RouteValues = new Dictionary<string, string>()
+})" />

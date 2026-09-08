@@ -1,0 +1,61 @@
+@page
+@model RentalApp.Pages.Expenses.CreateModel
+@{
+    ViewData["Title"] = "Add Expense";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Add Expense</h2>
+</div>
+
+<form method="post" class="card app-card card-body">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.PropertyId" class="form-label"></label>
+            <select asp-for="Input.PropertyId" asp-items="Model.PropertyOptions" class="form-select"></select>
+            <span asp-validation-for="Input.PropertyId" class="text-danger"></span>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.UnitId" class="form-label"></label>
+            <select asp-for="Input.UnitId" asp-items="Model.UnitOptions" class="form-select"></select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.CategoryId" class="form-label"></label>
+            <select asp-for="Input.CategoryId" asp-items="Model.CategoryOptions" class="form-select"></select>
+            <span asp-validation-for="Input.CategoryId" class="text-danger"></span>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.ExpenseDate" class="form-label"></label>
+            <input asp-for="Input.ExpenseDate" class="form-control" />
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Description" class="form-label"></label>
+        <input asp-for="Input.Description" class="form-control" />
+        <span asp-validation-for="Input.Description" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Amount" class="form-label"></label>
+        <input asp-for="Input.Amount" class="form-control" />
+        <span asp-validation-for="Input.Amount" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Notes" class="form-label"></label>
+        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/Expenses/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Expense</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

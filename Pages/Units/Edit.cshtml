@@ -1,0 +1,61 @@
+@page "{id:int}"
+@model RentalApp.Pages.Units.EditModel
+@{
+    ViewData["Title"] = "Edit Unit";
+}
+
+<h2 class="mb-3">Edit Unit</h2>
+
+<form method="post" class="card p-3 shadow-sm">
+    <input type="hidden" asp-for="Input.Id" />
+
+    <div class="mb-3">
+        <label asp-for="Input.PropertyId" class="form-label"></label>
+        <select asp-for="Input.PropertyId" asp-items="Model.PropertyOptions" class="form-select"></select>
+        <span asp-validation-for="Input.PropertyId" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.UnitNumber" class="form-label"></label>
+        <input asp-for="Input.UnitNumber" class="form-control" />
+        <span asp-validation-for="Input.UnitNumber" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.MonthlyRent" class="form-label"></label>
+        <input asp-for="Input.MonthlyRent" class="form-control" />
+        <span asp-validation-for="Input.MonthlyRent" class="text-danger"></span>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.RoomCount" class="form-label"></label>
+            <input asp-for="Input.RoomCount" class="form-control" />
+            <span asp-validation-for="Input.RoomCount" class="text-danger"></span>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Max Capacity</label>
+            <input asp-for="Input.RoomMaxCapacity" class="form-control" />
+            <span asp-validation-for="Input.RoomMaxCapacity" class="text-danger"></span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Status" class="form-label"></label>
+        <select asp-for="Input.Status" asp-items="Model.StatusOptions" class="form-select"></select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Description" class="form-label"></label>
+        <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/Units/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,57 @@
+@page
+@model RentalApp.Pages.Tenants.CreateModel
+@{
+    ViewData["Title"] = "Add Tenant";
+}
+
+<h2 class="mb-3">Add Tenant</h2>
+
+<form method="post" class="card p-3 shadow-sm">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.FirstName" class="form-label"></label>
+            <input asp-for="Input.FirstName" class="form-control" />
+            <span asp-validation-for="Input.FirstName" class="text-danger"></span>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.LastName" class="form-label"></label>
+            <input asp-for="Input.LastName" class="form-control" />
+            <span asp-validation-for="Input.LastName" class="text-danger"></span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.ContactNumber" class="form-label"></label>
+        <input asp-for="Input.ContactNumber" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Email" class="form-label"></label>
+        <input asp-for="Input.Email" class="form-control" />
+        <span asp-validation-for="Input.Email" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Address" class="form-label"></label>
+        <input asp-for="Input.Address" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.DateOfBirth" class="form-label"></label>
+        <input asp-for="Input.DateOfBirth" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Notes" class="form-label"></label>
+        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/Tenants/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Tenant</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

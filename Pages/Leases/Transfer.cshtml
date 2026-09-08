@@ -1,0 +1,70 @@
+@page "{id:int}"
+@model RentalApp.Pages.Leases.TransferModel
+@{
+    ViewData["Title"] = "Transfer Tenant";
+}
+
+<h2 class="mb-3">Transfer Tenant</h2>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<form method="post" class="card p-3 shadow-sm">
+    <input type="hidden" asp-for="Input.CurrentLeaseId" />
+
+    <div class="mb-2"><strong>Current:</strong> @Model.CurrentSummary</div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.NewUnitId" class="form-label"></label>
+            <select asp-for="Input.NewUnitId" asp-items="Model.UnitOptions" class="form-select" id="unitSelect"></select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.NewRoomId" class="form-label"></label>
+            <select asp-for="Input.NewRoomId" asp-items="Model.RoomOptions" class="form-select" id="roomSelect"></select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Input.TransferDate" class="form-label"></label>
+            <input asp-for="Input.TransferDate" class="form-control" />
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Notes" class="form-label"></label>
+        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/Leases/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button class="btn btn-primary" type="submit">Transfer</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        document.getElementById('unitSelect')?.addEventListener('change', async function () {
+            const unitId = this.value;
+            const roomSelect = document.getElementById('roomSelect');
+            if (!unitId) return;
+
+            const response = await fetch(`/api/leases/unit-info/${unitId}`);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            roomSelect.innerHTML = '';
+            (data.rooms || []).forEach(r => {
+                if (r.availableSlots > 0) {
+                    const opt = document.createElement('option');
+                    opt.value = r.roomId;
+                    opt.text = `${r.roomNumber} (${r.occupiedCount}/${r.maxCapacity})`;
+                    roomSelect.add(opt);
+                }
+            });
+        });
+    </script>
+}

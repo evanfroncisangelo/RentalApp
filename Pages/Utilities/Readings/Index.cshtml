@@ -1,0 +1,118 @@
+@page
+@model RentalApp.Pages.Utilities.Readings.IndexModel
+@{
+    ViewData["Title"] = "Utility Meter Readings";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Utility Meter Readings</h2>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.LastActionMessage))
+{
+    <div class="alert alert-success">@Model.LastActionMessage</div>
+}
+
+<form method="post" asp-page-handler="Create" class="card app-card card-body mb-4">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="row">
+        <div class="col-md-3 mb-2">
+            <label asp-for="Input.UtilityCustomerId" class="form-label">Customer</label>
+            <select asp-for="Input.UtilityCustomerId" asp-items="Model.CustomerOptions" class="form-select"></select>
+            <span asp-validation-for="Input.UtilityCustomerId" class="text-danger"></span>
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="Input.UtilityTypeId" class="form-label">Utility Type</label>
+            <select asp-for="Input.UtilityTypeId" asp-items="Model.UtilityTypeOptions" class="form-select"></select>
+            <span asp-validation-for="Input.UtilityTypeId" class="text-danger"></span>
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="Input.ReadingDate" class="form-label"></label>
+            <input asp-for="Input.ReadingDate" class="form-control" type="date" />
+        </div>
+        <div class="col-md-3 mb-2">
+            <label asp-for="Input.ReadingValue" class="form-label"></label>
+            <input asp-for="Input.ReadingValue" class="form-control" type="number" step="0.0001" min="0" />
+            <span asp-validation-for="Input.ReadingValue" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Reading & Generate Bill</button>
+    </div>
+</form>
+
+<form method="get" class="filter-bar row g-2 align-items-end">
+    <div class="col-md-4">
+        <label asp-for="UtilityCustomerId" class="form-label">Customer</label>
+        <select asp-for="UtilityCustomerId" asp-items="Model.CustomerOptions" class="form-select"></select>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="UtilityTypeId" class="form-label">Utility Type</label>
+        <select asp-for="UtilityTypeId" asp-items="Model.UtilityTypeOptions" class="form-select"></select>
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-outline-primary">Filter</button>
+    </div>
+</form>
+
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Customer Id</th>
+                <th>Utility Type Id</th>
+                <th>Previous</th>
+                <th>Current</th>
+                <th>Consumption</th>
+                <th>Backdated</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.PagedItems.Items.Count == 0)
+            {
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <span class="empty-state-title">No meter readings found</span>
+                            Save a reading to start utility consumption tracking.
+                        </div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Model.PagedItems.Items)
+                {
+                    <tr>
+                        <td>@item.ReadingDate.ToString("yyyy-MM-dd")</td>
+                        <td>@item.UtilityCustomerId</td>
+                        <td>@item.UtilityTypeId</td>
+                        <td>@item.PreviousReadingValue.ToString("N4")</td>
+                        <td>@item.ReadingValue.ToString("N4")</td>
+                        <td>@item.Consumption.ToString("N4")</td>
+                        <td>@(item.IsBackdated ? "Yes" : "No")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Utilities/Readings/Index",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>
+    {
+        ["UtilityCustomerId"] = Model.UtilityCustomerId?.ToString() ?? string.Empty,
+        ["UtilityTypeId"] = Model.UtilityTypeId?.ToString() ?? string.Empty
+    }
+})" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

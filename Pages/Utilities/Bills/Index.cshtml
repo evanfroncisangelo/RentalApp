@@ -1,0 +1,242 @@
+@page
+@model RentalApp.Pages.Utilities.Bills.IndexModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Utility Bills";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Utility Bills</h2>
+</div>
+
+<form method="get" class="filter-bar row g-2 align-items-end">
+    <div class="col-md-3">
+        <label asp-for="UtilityCustomerId" class="form-label">Customer</label>
+        <select asp-for="UtilityCustomerId" asp-items="Model.CustomerOptions" class="form-select"></select>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="UtilityTypeId" class="form-label">Utility Type</label>
+        <select asp-for="UtilityTypeId" asp-items="Model.UtilityTypeOptions" class="form-select"></select>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="BillingPeriod" class="form-label">Billing Period (YYYY-MM)</label>
+        <input asp-for="BillingPeriod" class="form-control" placeholder="2026-09" />
+    </div>
+    <div class="col-auto align-self-end">
+        <button type="submit" class="btn btn-outline-primary">Filter</button>
+    </div>
+</form>
+
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Period</th>
+                <th>Customer</th>
+                <th>Type</th>
+                <th>Consumption</th>
+                <th>Rate</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.PagedItems.Items.Count == 0)
+            {
+                <tr>
+                    <td colspan="10">
+                        <div class="empty-state">
+                            <span class="empty-state-title">No utility bills found</span>
+                            There are no utility bills for the selected filters.
+                        </div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var bill in Model.PagedItems.Items)
+                {
+                    <tr>
+                        <td>@bill.BillingPeriod</td>
+                        <td>@bill.UtilityCustomerName</td>
+                        <td>@bill.UtilityTypeName</td>
+                        <td>@bill.Consumption.ToString("N4")</td>
+                        <td>@bill.Rate.ToString("N4")</td>
+                        <td>@bill.Amount.ToString("N2")</td>
+                        <td>@bill.TotalPaid.ToString("N2")</td>
+                        <td>@bill.Balance.ToString("N2")</td>
+                        <td>@bill.Status</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary open-payment-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Record Payment</button>
+                            <button type="button" class="btn btn-sm btn-outline-success open-apply-credit-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Apply Credit</button>
+                            @if (bill.LastPaymentId.HasValue)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-danger open-void-payment-modal-btn" data-payment-id="@bill.LastPaymentId.Value">Void Last Payment</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Utilities/Bills/Index",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>
+    {
+        ["UtilityCustomerId"] = Model.UtilityCustomerId?.ToString() ?? string.Empty,
+        ["UtilityTypeId"] = Model.UtilityTypeId?.ToString() ?? string.Empty,
+        ["BillingPeriod"] = Model.BillingPeriod ?? string.Empty
+    }
+})" />
+
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="AddPayment">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Utility Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="AddPaymentInput.UtilityBillId" type="hidden" id="paymentBillIdInput" />
+                    <div class="mb-2">
+                        <label asp-for="AddPaymentInput.PaymentDate" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.PaymentDate" class="form-control" type="date" id="paymentDateInput" />
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="AddPaymentInput.Amount" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.Amount" class="form-control" type="number" min="0.01" step="0.01" id="paymentAmountInput" />
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="AddPaymentInput.ReferenceNumber" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.ReferenceNumber" class="form-control" id="paymentReferenceInput" />
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="AddPaymentInput.Notes" class="form-label"></label>
+                        <textarea asp-for="AddPaymentInput.Notes" class="form-control" rows="2" id="paymentNotesInput"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="applyCreditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="ApplyCredit">
+                <div class="modal-header">
+                    <h5 class="modal-title">Apply Utility Credit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="ApplyCreditInput.UtilityBillId" type="hidden" id="applyCreditBillIdInput" />
+                    <div class="mb-2">
+                        <label asp-for="ApplyCreditInput.Amount" class="form-label"></label>
+                        <input asp-for="ApplyCreditInput.Amount" class="form-control" type="number" min="0.01" step="0.01" id="applyCreditAmountInput" />
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="ApplyCreditInput.Notes" class="form-label"></label>
+                        <textarea asp-for="ApplyCreditInput.Notes" class="form-control" rows="2" id="applyCreditNotesInput"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Apply Credit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="voidPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="VoidPayment">
+                <div class="modal-header">
+                    <h5 class="modal-title">Void Last Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input asp-for="VoidPaymentInput.PaymentId" type="hidden" id="voidPaymentIdInput" />
+                    <div class="mb-2">
+                        <label asp-for="VoidPaymentInput.Reason" class="form-label"></label>
+                        <textarea asp-for="VoidPaymentInput.Reason" class="form-control" rows="2" id="voidPaymentReasonInput"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Void Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+        const applyCreditModal = new bootstrap.Modal(document.getElementById('applyCreditModal'));
+        const voidPaymentModal = new bootstrap.Modal(document.getElementById('voidPaymentModal'));
+
+        document.querySelectorAll('.open-payment-modal-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const bill = JSON.parse(this.dataset.bill);
+                document.getElementById('paymentBillIdInput').value = bill.id;
+                document.getElementById('paymentDateInput').value = new Date().toISOString().split('T')[0];
+                document.getElementById('paymentAmountInput').value = bill.balance > 0 ? bill.balance : '';
+                document.getElementById('paymentReferenceInput').value = '';
+                document.getElementById('paymentNotesInput').value = '';
+                paymentModal.show();
+            });
+        });
+
+        document.querySelectorAll('.open-apply-credit-modal-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const bill = JSON.parse(this.dataset.bill);
+                document.getElementById('applyCreditBillIdInput').value = bill.id;
+                document.getElementById('applyCreditAmountInput').value = bill.balance > 0 ? bill.balance : '';
+                document.getElementById('applyCreditNotesInput').value = '';
+                applyCreditModal.show();
+            });
+        });
+
+        document.querySelectorAll('.open-void-payment-modal-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                document.getElementById('voidPaymentIdInput').value = this.dataset.paymentId;
+                document.getElementById('voidPaymentReasonInput').value = '';
+                voidPaymentModal.show();
+            });
+        });
+
+        if (@Model.ShowPaymentModal.ToString().ToLowerInvariant()) {
+            paymentModal.show();
+        }
+
+        if (@Model.ShowApplyCreditModal.ToString().ToLowerInvariant()) {
+            applyCreditModal.show();
+        }
+
+        if (@Model.ShowVoidPaymentModal.ToString().ToLowerInvariant()) {
+            voidPaymentModal.show();
+        }
+    </script>
+}

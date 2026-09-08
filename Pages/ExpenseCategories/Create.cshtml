@@ -1,0 +1,31 @@
+@page
+@model RentalApp.Pages.ExpenseCategories.CreateModel
+@{
+    ViewData["Title"] = "Add Expense Category";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Add Expense Category</h2>
+</div>
+
+<form method="post" class="card app-card card-body">
+    <div class="mb-3">
+        <label asp-for="Input.Name" class="form-label"></label>
+        <input asp-for="Input.Name" class="form-control" />
+        <span asp-validation-for="Input.Name" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Description" class="form-label"></label>
+        <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/ExpenseCategories/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Category</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

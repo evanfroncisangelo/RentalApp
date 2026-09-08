@@ -1,0 +1,75 @@
+@page
+@model RentalApp.Pages.ExpenseCategories.IndexModel
+@{
+    ViewData["Title"] = "Expense Categories";
+}
+
+<div class="page-header-block">
+    <h2 class="mb-0">Expense Categories</h2>
+    <a class="btn btn-primary" asp-page="/ExpenseCategories/Create">+ Add Category</a>
+</div>
+
+<form method="get" class="filter-bar row g-2 align-items-end">
+    <div class="col-md-6">
+        <input asp-for="Search" class="form-control" placeholder="Search by category name" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Search</button>
+    </div>
+</form>
+
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Active</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.PagedItems.Items.Count == 0)
+            {
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <span class="empty-state-title">No expense categories</span>
+                            Add your first category to organize expense tracking.
+                        </div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Model.PagedItems.Items)
+                {
+                    <tr>
+                        <td>@item.Name</td>
+                        <td>@item.Description</td>
+                        <td>@(item.IsActive ? "Yes" : "No")</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="/ExpenseCategories/Edit" asp-route-id="@item.Id">Edit</a>
+                            @if (item.IsActive)
+                            {
+                                <form method="post" asp-page-handler="Deactivate" asp-route-id="@item.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this category?');">Deactivate</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/ExpenseCategories/Index",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>()
+})" />

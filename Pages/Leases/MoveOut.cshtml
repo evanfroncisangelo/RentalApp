@@ -1,0 +1,33 @@
+@page "{id:int}"
+@model RentalApp.Pages.Leases.MoveOutModel
+@{
+    ViewData["Title"] = "Move Out";
+}
+
+<h2 class="mb-3">Move Out Tenant</h2>
+
+<form method="post" class="card p-3 shadow-sm">
+    <input type="hidden" asp-for="Input.LeaseId" />
+
+    <p class="mb-3"><strong>Apartment #@Model.Input.LeaseId</strong></p>
+
+    <div class="mb-3">
+        <label asp-for="Input.MoveOutDate" class="form-label"></label>
+        <input asp-for="Input.MoveOutDate" class="form-control" />
+        <span asp-validation-for="Input.MoveOutDate" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Notes" class="form-label"></label>
+        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-page="/Leases/Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-warning">Confirm Move Out</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

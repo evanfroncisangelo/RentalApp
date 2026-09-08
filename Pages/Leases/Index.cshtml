@@ -1,0 +1,57 @@
+@page
+@model RentalApp.Pages.Leases.IndexModel
+@{
+    ViewData["Title"] = "Apartments";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Apartments</h2>
+    <a class="btn btn-primary" asp-page="/Leases/Create">+ Add Apartment</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Tenant</th>
+                <th>Unit</th>
+                <th>Room</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Rent</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.PagedItems.Items)
+            {
+                <tr>
+                    <td>@item.TenantName</td>
+                    <td>@item.UnitNumber</td>
+                    <td>@item.RoomNumber</td>
+                    <td>@item.StartDate.ToString("yyyy-MM-dd")</td>
+                    <td>@(item.EndDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>@item.MonthlyRent.ToString("N2")</td>
+                    <td>@item.Status</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Leases/Edit" asp-route-id="@item.Id">Edit</a>
+                        @if (item.Status.ToString() == "Active")
+                        {
+                            <a class="btn btn-sm btn-outline-info" asp-page="/Leases/Transfer" asp-route-id="@item.Id">Transfer</a>
+                            <a class="btn btn-sm btn-outline-warning" asp-page="/Leases/MoveOut" asp-route-id="@item.Id">Move Out</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/Leases/Index",
+    PageNumber = Model.PagedItems.PageNumber,
+    TotalPages = Model.PagedItems.TotalPages,
+    RouteValues = new Dictionary<string, string>()
+})" />
