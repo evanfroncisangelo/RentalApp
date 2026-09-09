@@ -5,9 +5,9 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Controllers;
 
 [ApiController]
-[Authorize]
+[ApiAuthorize]
 [Route("api/system")]
-public class SystemController(IDatabaseBackupService databaseBackupService) : ControllerBase
+public class SystemController(IDatabaseBackupService databaseBackupService, IWebHostEnvironment environment) : ControllerBase
 {
     [HttpGet("status")]
     public IActionResult GetStatus()
@@ -24,6 +24,11 @@ public class SystemController(IDatabaseBackupService databaseBackupService) : Co
     [HttpGet("backups")]
     public async Task<IActionResult> GetBackups(CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         var backups = await databaseBackupService.GetBackupsAsync(cancellationToken);
         return Ok(backups);
     }
@@ -31,6 +36,11 @@ public class SystemController(IDatabaseBackupService databaseBackupService) : Co
     [HttpPost("backups/create")]
     public async Task<IActionResult> CreateBackup([FromBody] CreateBackupRequest request, CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         var result = await databaseBackupService.CreateBackupAsync(request.Reason, cancellationToken);
         return Ok(result);
     }
@@ -38,6 +48,11 @@ public class SystemController(IDatabaseBackupService databaseBackupService) : Co
     [HttpPost("backups/restore")]
     public async Task<IActionResult> RestoreBackup([FromBody] RestoreBackupRequest request, CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         var result = await databaseBackupService.RestoreAsync(request.BackupFileName, request.ConfirmationPhrase, cancellationToken);
         return Ok(result);
     }
@@ -53,3 +68,4 @@ public class SystemController(IDatabaseBackupService databaseBackupService) : Co
         public string ConfirmationPhrase { get; set; } = string.Empty;
     }
 }
+

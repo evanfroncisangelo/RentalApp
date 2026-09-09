@@ -7,35 +7,47 @@
   - `dotnet build RentalApp.slnx -c Release`
   - `dotnet run --project RentalApp.csproj`
 - Local environment should use `ASPNETCORE_ENVIRONMENT=Development`.
+- Development is currently configured for SQL Server LocalDB through `appsettings.Development.json`.
 
 ## 2. Required .NET Version
 - Application targets `net10.0`.
 - MonsterASP deployment target must support .NET 10 runtime.
 
 ## 3. Database Setup
-- SQLite is the primary database.
-- Configure with `ConnectionStrings__DefaultConnection`.
-- Configure `ApplicationData__DatabasePath` to the same file used by `DefaultConnection` (`Data Source=...`).
-- Database file must be outside `wwwroot`.
+- SQL Server is the primary database provider.
+- Configure the application with `ConnectionStrings__DefaultConnection`.
+- Development currently uses LocalDB:
+  - `Server=(localdb)\MSSQLLocalDB;Database=RentalAppDb;Trusted_Connection=True;MultipleActiveResultSets=True;Encrypt=False;TrustServerCertificate=True`
+- Production must use a valid SQL Server connection string for the target SQL Server instance.
+- The application uses EF Core SQL Server provider via `UseSqlServer(...)` in `Program.cs`.
 
 ## 4. EF Core Migrations
 - Historical migrations are kept in `Migrations/` and should not be edited.
-- Local migration apply command:
+- Apply migrations with:
   - `dotnet ef database update --project RentalApp.csproj`
+- Run migrations against the SQL Server instance referenced by `ConnectionStrings__DefaultConnection`.
 
-## 5. Production SQLite Setup
-- Set MonsterASP writable persistent application data root.
-- Store DB, backups, and uploads in that persistent location.
-- Do not place SQLite files in repository, publish output, or static web folders.
+## 5. Production SQL Server Setup
+- Provision a SQL Server database that the deployed app can reach.
+- Ensure the SQL login/user has permission to connect and perform normal application reads/writes.
+- Configure a writable application data root for operational files such as uploads and backup file output.
+- Do not store secrets or production connection strings in source control.
 
 ## 6. MonsterASP Setup
 - Create website/app with .NET 10 support.
 - Configure environment variables in hosting panel.
 - Confirm writable persistent path for application data.
+- Confirm the hosted app can reach the target SQL Server instance over the required network path.
 
 ## 7. HTTPS
 - Production must run over HTTPS.
 - Keep HSTS enabled in production.
+
+## 7.1 Authentication Modes
+- Razor Pages use secure cookie authentication for browser sessions.
+- API controllers are intended for JWT Bearer authentication.
+- Do not rely on browser cookies to call protected API endpoints from third-party clients.
+- Self-service forgot-password is disabled outside development until a secure reset flow is implemented.
 
 ## 8. Environment Variables (Production)
 Set in MonsterASP (example names):
@@ -46,7 +58,6 @@ Set in MonsterASP (example names):
 - `Jwt__Key`
 - `Jwt__ExpiresMinutes`
 - `ApplicationData__RootPath`
-- `ApplicationData__DatabasePath`
 - `ApplicationData__UploadsPath`
 - `ApplicationData__BackupsPath`
 - `ApplicationData__BackupRetentionDays`
@@ -74,38 +85,39 @@ Pipeline order:
 Deployment is blocked if restore/build/test/publish fails.
 
 ## 11. Database Backup
-- Use authenticated endpoint: `POST /api/system/backups/create`
-- Backups are generated with SQLite backup API.
-- Backup files are timestamped and written to `ApplicationData__BackupsPath`.
-- Retention uses `ApplicationData__BackupRetentionDays`.
+- Do not depend on application HTTP endpoints for production backup operations.
+- Current backup/restore endpoints are development-only.
+- Preferred production approach: use MonsterASP or SQL Server backup tooling outside the web app.
+- If SQL Server native backups are used, the SQL Server service/account must be able to access the target backup path.
+- Keep `.bak` files out of the web root and out of source control.
 
 ## 12. Database Restore
-- Use authenticated endpoint: `POST /api/system/backups/restore`
-- Request must include:
-  - managed backup file name
-  - confirmation phrase `RESTORE`
-- Restore creates a pre-restore safety backup automatically before applying restore.
-- Restore is always operator-triggered (never automatic during deployment).
+- Do not perform database restore through the production web application.
+- Current restore endpoint is development-only.
+- Preferred production approach: restore through hosting or SQL Server administrative tooling during a controlled maintenance window.
+- Always create or confirm a valid backup before any restore action.
 
 ## 13. Production Migration Procedure
-1. Create a DB backup.
-2. Validate migration in staging/local copy.
-3. Run `dotnet ef database update` in controlled maintenance window.
+1. Create a SQL Server backup.
+2. Validate migration in staging or a local SQL Server copy.
+3. Run `dotnet ef database update` in a controlled maintenance window.
 4. Run smoke tests.
-5. If failure: restore from pre-migration backup.
+5. If failure: restore from the pre-migration backup.
 
 ## 14. Troubleshooting
 - Startup fails in production:
-  - check required env variables and writable paths.
-- DB write failures:
-  - verify folder permissions and DB path consistency.
+  - check required env variables and SQL Server connection string.
+- Database connection failures:
+  - verify SQL Server instance availability, credentials, firewall/network access, and TLS requirements.
+- Backup or restore failures:
+  - verify SQL Server has permission to read/write the configured backup directory.
 - Deployment failure:
-  - verify WebDeploy endpoint/credentials and SSL trust requirement.
+  - verify WebDeploy endpoint, credentials, and SSL trust requirement.
 
 ## 15. Redeployment Behavior
-- CI publish excludes DB files (`*.db`, `*.sqlite*`, WAL/SHM) and operational folders.
-- Deployment pushes app binaries/content only.
-- Existing production DB remains on persistent storage and is not overwritten by redeploy.
+- CI publish excludes development settings, local database artifacts, and operational folders from the deploy package.
+- Deployment pushes app binaries and content only.
+- The production SQL Server database is external to the published site output and is not overwritten by redeploy.
 
 ## 16. Verify DB Survives Redeployment
 1. Record current row count in a known table.
@@ -128,7 +140,7 @@ Deployment is blocked if restore/build/test/publish fails.
 11. Logout and verify redirect to login.
 12. Validate `/health` responds healthy.
 13. Confirm Swagger UI is not exposed in production.
-14. Confirm DB files are not publicly downloadable.
+14. Confirm backup files are not publicly downloadable.
 15. Create a manual backup via API.
 16. Recycle app and verify data remains.
 17. Deploy again and confirm no data overwrite.

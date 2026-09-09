@@ -9,7 +9,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Pages.Auth;
 
 [AllowAnonymous]
-public class ForgotPasswordModel(IAuthService authService) : PageModel
+public class ForgotPasswordModel(IAuthService authService, IWebHostEnvironment environment) : PageModel
 {
     [BindProperty]
     public ForgotPasswordInputModel Input { get; set; } = new();
@@ -19,6 +19,11 @@ public class ForgotPasswordModel(IAuthService authService) : PageModel
 
     public IActionResult OnGet()
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         if (User.Identity?.IsAuthenticated == true)
         {
             return RedirectToPage("/Dashboard/Index");
@@ -29,6 +34,11 @@ public class ForgotPasswordModel(IAuthService authService) : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         if (!ModelState.IsValid)
         {
             return Page();

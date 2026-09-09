@@ -32,11 +32,6 @@
 
   <ItemGroup>
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
-    <Content Update="Data\**\*.db" CopyToPublishDirectory="Never" />
-    <Content Update="Data\**\*.db-shm" CopyToPublishDirectory="Never" />
-    <Content Update="Data\**\*.db-wal" CopyToPublishDirectory="Never" />
-    <Content Update="Data\**\*.sqlite" CopyToPublishDirectory="Never" />
-    <Content Update="Data\**\*.sqlite3" CopyToPublishDirectory="Never" />
     <Content Update="App_Data\**\*" CopyToPublishDirectory="Never" />
     <Content Update="backups\**\*" CopyToPublishDirectory="Never" />
     <Content Update="logs\**\*" CopyToPublishDirectory="Never" />

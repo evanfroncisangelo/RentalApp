@@ -34,177 +34,187 @@ public class UtilityPaymentService(
 
     public async Task<UtilityBillPaymentDto> CreateAsync(CreateUtilityBillPaymentRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (request.Amount <= 0)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Payment amount must be greater than zero.");
-        }
+            if (request.Amount <= 0)
+            {
+                throw new AppValidationException("Payment amount must be greater than zero.");
+            }
 
-        var bill = await dbContext.UtilityBills
-            .Include(x => x.Payments)
-            .FirstOrDefaultAsync(x => x.Id == request.UtilityBillId, cancellationToken)
-            ?? throw new AppValidationException("Utility bill does not exist.");
+            var bill = await dbContext.UtilityBills
+                .Include(x => x.Payments)
+                .FirstOrDefaultAsync(x => x.Id == request.UtilityBillId, cancellationToken)
+                ?? throw new AppValidationException("Utility bill does not exist.");
 
-        if (bill.Status == UtilityBillStatus.Cancelled)
-        {
-            throw new AppValidationException("Cannot record payment for a cancelled bill.");
-        }
+            if (bill.Status == UtilityBillStatus.Cancelled)
+            {
+                throw new AppValidationException("Cannot record payment for a cancelled bill.");
+            }
 
-        var payment = new UtilityBillPayment
-        {
-            UtilityBillId = request.UtilityBillId,
-            PaymentMethodId = request.PaymentMethodId,
-            PaymentDate = request.PaymentDate == default ? DateTime.UtcNow.Date : request.PaymentDate.Date,
-            Amount = request.Amount,
-            ReferenceNumber = request.ReferenceNumber?.Trim(),
-            Notes = request.Notes?.Trim(),
-            IsVoided = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            var payment = new UtilityBillPayment
+            {
+                UtilityBillId = request.UtilityBillId,
+                PaymentMethodId = request.PaymentMethodId,
+                PaymentDate = request.PaymentDate == default ? DateTime.UtcNow.Date : request.PaymentDate.Date,
+                Amount = request.Amount,
+                ReferenceNumber = request.ReferenceNumber?.Trim(),
+                Notes = request.Notes?.Trim(),
+                IsVoided = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-        dbContext.UtilityBillPayments.Add(payment);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.UtilityBillPayments.Add(payment);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(bill.Id, cancellationToken);
-        await HandleOverpaymentCreditAsync(bill.UtilityCustomerId, bill.UtilityTypeId, payment.Id, bill.Amount, totalPaid, cancellationToken);
+            var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(bill.Id, cancellationToken);
+            await HandleOverpaymentCreditAsync(bill.UtilityCustomerId, bill.UtilityTypeId, payment.Id, bill.Amount, totalPaid, cancellationToken);
+            (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(bill.Id, cancellationToken);
 
-        return new UtilityBillPaymentDto
-        {
-            Id = payment.Id,
-            UtilityBillId = payment.UtilityBillId,
-            PaymentDate = payment.PaymentDate,
-            Amount = payment.Amount,
-            IsVoided = payment.IsVoided,
-            BillTotalPaidAfterPayment = totalPaid,
-            BillBalanceAfterPayment = balance,
-            ReferenceNumber = payment.ReferenceNumber,
-            Notes = payment.Notes,
-            IsCreditApplication = false
-        };
+            return new UtilityBillPaymentDto
+            {
+                Id = payment.Id,
+                UtilityBillId = payment.UtilityBillId,
+                PaymentDate = payment.PaymentDate,
+                Amount = payment.Amount,
+                IsVoided = payment.IsVoided,
+                BillTotalPaidAfterPayment = totalPaid,
+                BillBalanceAfterPayment = balance,
+                ReferenceNumber = payment.ReferenceNumber,
+                Notes = payment.Notes,
+                IsCreditApplication = false
+            };
+        }, cancellationToken);
     }
 
     public async Task<UtilityBillPaymentDto> VoidAsync(int paymentId, string? reason, CancellationToken cancellationToken = default)
     {
-        var payment = await dbContext.UtilityBillPayments
-            .FirstOrDefaultAsync(x => x.Id == paymentId, cancellationToken)
-            ?? throw new AppNotFoundException("Utility payment not found.");
-
-        if (payment.IsVoided)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Payment is already voided.");
-        }
+            var payment = await dbContext.UtilityBillPayments
+                .FirstOrDefaultAsync(x => x.Id == paymentId, cancellationToken)
+                ?? throw new AppNotFoundException("Utility payment not found.");
 
-        payment.IsVoided = true;
-        payment.Notes = string.IsNullOrWhiteSpace(reason)
-            ? payment.Notes
-            : string.IsNullOrWhiteSpace(payment.Notes)
-                ? $"Voided: {reason.Trim()}"
-                : $"{payment.Notes} | Voided: {reason.Trim()}";
-        payment.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
+            if (payment.IsVoided)
+            {
+                throw new AppValidationException("Payment is already voided.");
+            }
 
-        await ReversePaymentLinkedCreditsAsync(payment, cancellationToken);
+            payment.IsVoided = true;
+            payment.Notes = string.IsNullOrWhiteSpace(reason)
+                ? payment.Notes
+                : string.IsNullOrWhiteSpace(payment.Notes)
+                    ? $"Voided: {reason.Trim()}"
+                    : $"{payment.Notes} | Voided: {reason.Trim()}";
+            payment.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(payment.UtilityBillId, cancellationToken);
+            await ReversePaymentLinkedCreditsAsync(payment, cancellationToken);
 
-        return new UtilityBillPaymentDto
-        {
-            Id = payment.Id,
-            UtilityBillId = payment.UtilityBillId,
-            PaymentDate = payment.PaymentDate,
-            Amount = payment.Amount,
-            IsVoided = payment.IsVoided,
-            BillTotalPaidAfterPayment = totalPaid,
-            BillBalanceAfterPayment = balance,
-            ReferenceNumber = payment.ReferenceNumber,
-            Notes = payment.Notes,
-            IsCreditApplication = false
-        };
+            var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(payment.UtilityBillId, cancellationToken);
+
+            return new UtilityBillPaymentDto
+            {
+                Id = payment.Id,
+                UtilityBillId = payment.UtilityBillId,
+                PaymentDate = payment.PaymentDate,
+                Amount = payment.Amount,
+                IsVoided = payment.IsVoided,
+                BillTotalPaidAfterPayment = totalPaid,
+                BillBalanceAfterPayment = balance,
+                ReferenceNumber = payment.ReferenceNumber,
+                Notes = payment.Notes,
+                IsCreditApplication = false
+            };
+        }, cancellationToken);
     }
 
     public async Task<UtilityBillPaymentDto> ApplyCreditAsync(int utilityBillId, decimal amount, string? notes, CancellationToken cancellationToken = default)
     {
-        if (amount <= 0)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Credit amount must be greater than zero.");
-        }
+            if (amount <= 0)
+            {
+                throw new AppValidationException("Credit amount must be greater than zero.");
+            }
 
-        var bill = await dbContext.UtilityBills
-            .Include(x => x.Payments)
-            .FirstOrDefaultAsync(x => x.Id == utilityBillId, cancellationToken)
-            ?? throw new AppValidationException("Utility bill does not exist.");
+            var bill = await dbContext.UtilityBills
+                .Include(x => x.Payments)
+                .FirstOrDefaultAsync(x => x.Id == utilityBillId, cancellationToken)
+                ?? throw new AppValidationException("Utility bill does not exist.");
 
-        if (bill.Status == UtilityBillStatus.Cancelled)
-        {
-            throw new AppValidationException("Cannot apply credit to a cancelled bill.");
-        }
+            if (bill.Status == UtilityBillStatus.Cancelled)
+            {
+                throw new AppValidationException("Cannot apply credit to a cancelled bill.");
+            }
 
-        var latestBalance = await dbContext.UtilityCustomerCredits
-            .Where(x => x.UtilityCustomerId == bill.UtilityCustomerId && x.UtilityTypeId == bill.UtilityTypeId)
-            .OrderByDescending(x => x.OccurredAt)
-            .Select(x => (decimal?)x.BalanceAfter)
-            .FirstOrDefaultAsync(cancellationToken) ?? 0m;
+            var latestBalance = await dbContext.UtilityCustomerCredits
+                .Where(x => x.UtilityCustomerId == bill.UtilityCustomerId && x.UtilityTypeId == bill.UtilityTypeId)
+                .OrderByDescending(x => x.OccurredAt)
+                .Select(x => (decimal?)x.BalanceAfter)
+                .FirstOrDefaultAsync(cancellationToken) ?? 0m;
 
-        if (latestBalance <= 0)
-        {
-            throw new AppValidationException("No available credit for this utility customer.");
-        }
+            if (latestBalance <= 0)
+            {
+                throw new AppValidationException("No available credit for this utility customer.");
+            }
 
-        var currentPaid = bill.Payments.Where(x => !x.IsVoided).Sum(x => x.Amount);
-        var currentBalance = bill.Amount - currentPaid;
-        if (currentBalance <= 0)
-        {
-            throw new AppValidationException("This bill has no outstanding balance for credit application.");
-        }
+            var currentPaid = bill.Payments.Where(x => !x.IsVoided).Sum(x => x.Amount);
+            var currentBalance = bill.Amount - currentPaid;
+            if (currentBalance <= 0)
+            {
+                throw new AppValidationException("This bill has no outstanding balance for credit application.");
+            }
 
-        var applyAmount = new[] { amount, latestBalance, currentBalance }.Min();
+            var applyAmount = new[] { amount, latestBalance, currentBalance }.Min();
 
-        var payment = new UtilityBillPayment
-        {
-            UtilityBillId = bill.Id,
-            PaymentMethodId = null,
-            PaymentDate = DateTime.UtcNow.Date,
-            Amount = applyAmount,
-            ReferenceNumber = "CREDIT-APPLIED",
-            Notes = string.IsNullOrWhiteSpace(notes) ? "Applied from utility customer credit." : notes.Trim(),
-            IsVoided = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            var payment = new UtilityBillPayment
+            {
+                UtilityBillId = bill.Id,
+                PaymentMethodId = null,
+                PaymentDate = DateTime.UtcNow.Date,
+                Amount = applyAmount,
+                ReferenceNumber = "CREDIT-APPLIED",
+                Notes = string.IsNullOrWhiteSpace(notes) ? "Applied from utility customer credit." : notes.Trim(),
+                IsVoided = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-        dbContext.UtilityBillPayments.Add(payment);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.UtilityBillPayments.Add(payment);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var newCreditBalance = latestBalance - applyAmount;
-        dbContext.UtilityCustomerCredits.Add(new UtilityCustomerCredit
-        {
-            UtilityCustomerId = bill.UtilityCustomerId,
-            UtilityTypeId = bill.UtilityTypeId,
-            SourcePaymentId = payment.Id,
-            Amount = -applyAmount,
-            BalanceAfter = newCreditBalance,
-            TransactionType = UtilityCreditTransactionType.AppliedToBill,
-            OccurredAt = DateTime.UtcNow,
-            Notes = "Credit applied to utility bill."
-        });
+            var newCreditBalance = latestBalance - applyAmount;
+            dbContext.UtilityCustomerCredits.Add(new UtilityCustomerCredit
+            {
+                UtilityCustomerId = bill.UtilityCustomerId,
+                UtilityTypeId = bill.UtilityTypeId,
+                SourcePaymentId = payment.Id,
+                Amount = -applyAmount,
+                BalanceAfter = newCreditBalance,
+                TransactionType = UtilityCreditTransactionType.AppliedToBill,
+                OccurredAt = DateTime.UtcNow,
+                Notes = "Credit applied to utility bill."
+            });
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(bill.Id, cancellationToken);
+            var (totalPaid, balance) = await RecomputeBillAndGetTotalsAsync(bill.Id, cancellationToken);
 
-        return new UtilityBillPaymentDto
-        {
-            Id = payment.Id,
-            UtilityBillId = payment.UtilityBillId,
-            PaymentDate = payment.PaymentDate,
-            Amount = payment.Amount,
-            IsVoided = payment.IsVoided,
-            BillTotalPaidAfterPayment = totalPaid,
-            BillBalanceAfterPayment = balance,
-            ReferenceNumber = payment.ReferenceNumber,
-            Notes = payment.Notes,
-            IsCreditApplication = true
-        };
+            return new UtilityBillPaymentDto
+            {
+                Id = payment.Id,
+                UtilityBillId = payment.UtilityBillId,
+                PaymentDate = payment.PaymentDate,
+                Amount = payment.Amount,
+                IsVoided = payment.IsVoided,
+                BillTotalPaidAfterPayment = totalPaid,
+                BillBalanceAfterPayment = balance,
+                ReferenceNumber = payment.ReferenceNumber,
+                Notes = payment.Notes,
+                IsCreditApplication = true
+            };
+        }, cancellationToken);
     }
 
     private async Task<(decimal totalPaid, decimal balance)> RecomputeBillAndGetTotalsAsync(int utilityBillId, CancellationToken cancellationToken)
@@ -294,6 +304,28 @@ public class UtilityPaymentService(
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction is not null ||
+            string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal))
+        {
+            return await action();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var result = await action();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private static UtilityBillPaymentDto ToDto(UtilityBillPayment entity)

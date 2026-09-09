@@ -9,10 +9,23 @@ public class InvoiceNumberGenerator(RentalDbContext dbContext) : IInvoiceNumberG
     public async Task<string> GenerateAsync(CancellationToken cancellationToken = default)
     {
         var prefix = $"INV-{DateTime.UtcNow:yyyyMM}";
-        var countThisMonth = await dbContext.Invoices
+        var latestInvoiceNumber = await dbContext.Invoices
             .AsNoTracking()
-            .CountAsync(x => x.InvoiceNumber.StartsWith(prefix), cancellationToken);
+            .Where(x => x.InvoiceNumber.StartsWith(prefix))
+            .OrderByDescending(x => x.InvoiceNumber)
+            .Select(x => x.InvoiceNumber)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return $"{prefix}-{(countThisMonth + 1):D4}";
+        var nextSequence = 1;
+        if (!string.IsNullOrWhiteSpace(latestInvoiceNumber))
+        {
+            var lastDashIndex = latestInvoiceNumber.LastIndexOf('-');
+            if (lastDashIndex >= 0 && int.TryParse(latestInvoiceNumber[(lastDashIndex + 1)..], out var parsedSequence))
+            {
+                nextSequence = parsedSequence + 1;
+            }
+        }
+
+        return $"{prefix}-{nextSequence:D4}";
     }
 }

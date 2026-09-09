@@ -6,7 +6,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Controllers;
 
 [ApiController]
-[Authorize]
+[ApiAuthorize]
 [Route("api/[controller]")]
 public class DashboardController(IDashboardService dashboardService) : ControllerBase
 {
@@ -20,11 +20,12 @@ public class DashboardController(IDashboardService dashboardService) : Controlle
         }
 
         // Disable caching to ensure fresh data
-        Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-        Response.Headers.Add("Pragma", "no-cache");
-        Response.Headers.Add("Expires", "0");
+        Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
 
         var summary = await dashboardService.GetSummaryAsync(selectedYear, cancellationToken);
         return Ok(summary);
     }
 }
+

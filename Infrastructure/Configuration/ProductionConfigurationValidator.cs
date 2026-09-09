@@ -43,6 +43,11 @@ public sealed class ProductionConfigurationValidator(
             throw new InvalidOperationException("Production configuration is invalid. DefaultConnection must include a SQL Server database name.");
         }
 
+        if (LooksLikeNonProductionConnection(defaultConnection, sqlServerConnection.DataSource, sqlServerConnection.InitialCatalog, sqlServerConnection.UserID))
+        {
+            throw new InvalidOperationException("Production configuration is invalid. DefaultConnection must be replaced with the real production SQL Server connection string.");
+        }
+
         var appData = appDataOptions.Value;
         EnsureConfiguredPath(appData.RootPath, "ApplicationData__RootPath");
         EnsureConfiguredPath(appData.UploadsPath, "ApplicationData__UploadsPath");
@@ -107,12 +112,40 @@ public sealed class ProductionConfigurationValidator(
 
     private static bool LooksLikePlaceholder(string jwtKey)
     {
-        var normalized = jwtKey.Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase)
+        var normalized = Normalize(jwtKey);
+        return PlaceholderJwtMarkers.Any(normalized.Contains);
+    }
+
+    private static bool LooksLikeNonProductionConnection(params string?[] values)
+    {
+        var normalizedValues = values
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(Normalize)
+            .ToList();
+
+        if (normalizedValues.Count == 0)
+        {
+            return true;
+        }
+
+        return normalizedValues.Any(value =>
+            value.Contains("localdb", StringComparison.Ordinal) ||
+            value.Contains("localhost", StringComparison.Ordinal) ||
+            value.Contains("sqlexpress", StringComparison.Ordinal) ||
+            value.Contains("your", StringComparison.Ordinal) ||
+            value.Contains("placeholder", StringComparison.Ordinal) ||
+            value.Contains("development", StringComparison.Ordinal) ||
+            value.Contains("sample", StringComparison.Ordinal));
+    }
+
+    private static string Normalize(string? value)
+    {
+        return (value ?? string.Empty).Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(")", string.Empty, StringComparison.OrdinalIgnoreCase)
             .ToLowerInvariant();
-
-        return PlaceholderJwtMarkers.Any(normalized.Contains);
     }
 
 }

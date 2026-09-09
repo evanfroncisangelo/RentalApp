@@ -12,7 +12,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Pages.Auth;
 
 [AllowAnonymous]
-public class RegisterModel(IAuthService authService) : PageModel
+public class RegisterModel(IAuthService authService, IWebHostEnvironment environment) : PageModel
 {
     [BindProperty]
     public RegisterInputModel Input { get; set; } = new();
@@ -21,6 +21,11 @@ public class RegisterModel(IAuthService authService) : PageModel
 
     public IActionResult OnGet()
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         if (User.Identity?.IsAuthenticated == true)
         {
             return RedirectToPage("/Dashboard/Index");
@@ -31,6 +36,11 @@ public class RegisterModel(IAuthService authService) : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         if (!ModelState.IsValid)
         {
             return Page();

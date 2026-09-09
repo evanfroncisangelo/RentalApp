@@ -43,7 +43,7 @@ jobs:
         run: |
           if (Test-Path ./publish/appsettings.Development.json) { Remove-Item ./publish/appsettings.Development.json -Force }
           if (Test-Path ./publish/appsettings.Local.json) { Remove-Item ./publish/appsettings.Local.json -Force }
-          Get-ChildItem ./publish -Recurse -File -Include *.db,*.db-*,*.sqlite,*.sqlite3,*.bak,*.tmp | Remove-Item -Force -ErrorAction SilentlyContinue
+          Get-ChildItem ./publish -Recurse -File -Include *.bak,*.tmp | Remove-Item -Force -ErrorAction SilentlyContinue
           Get-ChildItem ./publish -Directory -Recurse | Where-Object { $_.Name -in @('App_Data','backups','logs','uploads','.git','.github') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Deploy to MonsterASP via Web Deploy (IIS)

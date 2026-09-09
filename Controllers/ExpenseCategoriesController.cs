@@ -6,7 +6,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Controllers;
 
 [ApiController]
-[Authorize]
+[ApiAuthorize]
 [Route("api/[controller]")]
 public class ExpenseCategoriesController(IExpenseCategoryService expenseCategoryService) : ControllerBase
 {
@@ -45,3 +45,4 @@ public class ExpenseCategoriesController(IExpenseCategoryService expenseCategory
         return NoContent();
     }
 }
+

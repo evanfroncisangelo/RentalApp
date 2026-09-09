@@ -9,7 +9,7 @@
 
 ## Configuration
 - [ ] ASPNETCORE_ENVIRONMENT configured
-- [ ] Production SQLite connection configured
+- [ ] Production SQL Server connection configured
 - [ ] JWT issuer configured
 - [ ] JWT audience configured
 - [ ] Strong JWT key configured
@@ -28,18 +28,20 @@
 - [ ] Production database created
 - [ ] Latest schema applied
 - [ ] Existing data verified
-- [ ] Backup tested
-- [ ] Restore procedure tested
+- [ ] Hosting or SQL Server backup process verified
+- [ ] Hosting or SQL Server restore procedure verified
 - [ ] Redeployment does not overwrite database
 
 ## Security
 - [ ] Authentication verified
 - [ ] Authorization verified
+- [ ] JWT-protected APIs verified
 - [ ] CSRF protection verified
 - [ ] HTTPS verified
 - [ ] Security headers verified
 - [ ] Production Swagger disabled
 - [ ] Sensitive files inaccessible
+- [ ] Self-service password reset disabled or securely redesigned
 - [ ] Secrets not committed
 
 ## Functional Smoke Test

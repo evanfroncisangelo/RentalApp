@@ -6,7 +6,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Controllers;
 
 [ApiController]
-[Authorize]
+[ApiAuthorize]
 [Route("api/[controller]")]
 public class ExpensesController(IExpenseService expenseService) : ControllerBase
 {
@@ -38,3 +38,4 @@ public class ExpensesController(IExpenseService expenseService) : ControllerBase
         return Ok(updated);
     }
 }
+

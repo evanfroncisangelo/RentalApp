@@ -7,12 +7,17 @@ namespace RentalApp.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(IAuthService authService) : ControllerBase
+public class AuthController(IAuthService authService, IWebHostEnvironment environment) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterRequestDto request, CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         var response = await authService.RegisterAsync(request, cancellationToken);
         return Created(string.Empty, response);
     }
@@ -29,6 +34,11 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, CancellationToken cancellationToken)
     {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         await authService.ForgotPasswordAsync(request, cancellationToken);
         return Ok(new { message = "Password updated successfully." });
     }

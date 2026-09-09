@@ -21,6 +21,8 @@ public class UtilityBillService(RentalDbContext dbContext) : IUtilityBillService
 
         foreach (var customer in customers)
         {
+            var utilityTypeId = customer.UtilityCategoryId ?? throw new InvalidOperationException("Active utility customer must have a utility type.");
+            var defaultRate = customer.DefaultRate ?? throw new InvalidOperationException("Active utility customer must have a default rate.");
             var serviceStart = (customer.UtilityStartDate?.Date ?? customer.CreatedAt.Date);
             var periodCursor = new DateTime(serviceStart.Year, serviceStart.Month, 1);
             var currentPeriodStart = new DateTime(today.Year, today.Month, 1);
@@ -38,7 +40,7 @@ public class UtilityBillService(RentalDbContext dbContext) : IUtilityBillService
 
                 var exists = await dbContext.UtilityBills.AnyAsync(
                     x => x.UtilityCustomerId == customer.Id
-                         && x.UtilityTypeId == customer.UtilityCategoryId!.Value
+                         && x.UtilityTypeId == utilityTypeId
                          && x.BillingPeriod == periodKey,
                     cancellationToken);
 
@@ -47,9 +49,9 @@ public class UtilityBillService(RentalDbContext dbContext) : IUtilityBillService
                     dbContext.UtilityBills.Add(new UtilityBill
                     {
                         UtilityCustomerId = customer.Id,
-                        UtilityTypeId = customer.UtilityCategoryId.Value,
+                        UtilityTypeId = utilityTypeId,
                         BillingPeriod = periodKey,
-                        Amount = decimal.Round(customer.DefaultRate.Value, 2, MidpointRounding.AwayFromZero),
+                        Amount = decimal.Round(defaultRate, 2, MidpointRounding.AwayFromZero),
                         DueDate = dueDate,
                         Status = UtilityBillStatus.Unpaid,
                         CreatedAt = DateTime.UtcNow,

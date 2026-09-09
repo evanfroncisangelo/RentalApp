@@ -6,7 +6,7 @@ using RentalApp.Application.Interfaces;
 namespace RentalApp.Controllers;
 
 [ApiController]
-[Authorize]
+[ApiAuthorize]
 [Route("api/[controller]")]
 public class LeasesController(ILeaseService leaseService) : ControllerBase
 {
@@ -59,3 +59,4 @@ public class LeasesController(ILeaseService leaseService) : ControllerBase
         return Ok(info);
     }
 }
+

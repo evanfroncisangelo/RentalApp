@@ -44,63 +44,83 @@ public class TenantService(RentalDbContext dbContext, ILeaseService leaseService
 
     public async Task<TenantDto> CreateAsync(CreateTenantRequestDto request, CancellationToken cancellationToken = default)
     {
-        var entity = new Tenant
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null &&
+            !string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal);
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
+        Tenant? entity = null;
+
+        try
         {
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            ContactNumber = request.ContactNumber?.Trim(),
-            Email = request.Email?.Trim(),
-            Address = request.Address?.Trim(),
-            UnitId = request.UnitId,
-            UnitNumber = request.UnitNumber?.Trim(),
-            RoomNumber = request.RoomNumber?.Trim(),
-            DateOfBirth = request.DateOfBirth,
-            MoveInDate = request.MoveInDate,
-            Notes = request.Notes?.Trim(),
-            IsActive = request.IsActive,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        dbContext.Tenants.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        // If tenant is assigned to a unit and is active, create an active lease
-        if (entity.IsActive && entity.UnitId.HasValue)
-        {
-            // Get the unit to find rent and room info
-            var unit = await dbContext.Units
-                .AsNoTracking()
-                .Include(u => u.Rooms)
-                .FirstOrDefaultAsync(u => u.Id == entity.UnitId, cancellationToken);
-
-            if (unit != null)
+            entity = new Tenant
             {
-                // Find first available active room
-                var availableRoom = unit.Rooms
-                    .FirstOrDefault(r => r.IsActive);
+                FirstName = request.FirstName.Trim(),
+                LastName = request.LastName.Trim(),
+                ContactNumber = request.ContactNumber?.Trim(),
+                Email = request.Email?.Trim(),
+                Address = request.Address?.Trim(),
+                UnitId = request.UnitId,
+                UnitNumber = request.UnitNumber?.Trim(),
+                RoomNumber = request.RoomNumber?.Trim(),
+                DateOfBirth = request.DateOfBirth,
+                MoveInDate = request.MoveInDate,
+                Notes = request.Notes?.Trim(),
+                IsActive = request.IsActive,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-                if (availableRoom != null)
-                    {
-                        // Create active lease with MoveInDate as StartDate
-                        // SecurityDeposit defaults to one month's rent if not customized
-                        var leaseStartDate = request.MoveInDate ?? DateTime.UtcNow.Date;
-                        await leaseService.CreateAsync(new CreateLeaseRequestDto
-                        {
-                            UnitId = unit.Id,
-                            RoomId = availableRoom.Id,
-                            TenantId = entity.Id,
-                            StartDate = leaseStartDate,
-                            MonthlyRent = unit.MonthlyRent,
-                            SecurityDeposit = unit.MonthlyRent, // Default to 1 month rent
-                            DueDayOfMonth = 1,
-                            Status = LeaseStatus.Active
-                        }, cancellationToken);
-                    }
+            dbContext.Tenants.Add(entity);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (entity.IsActive && entity.UnitId.HasValue)
+            {
+                var unit = await dbContext.Units
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == entity.UnitId, cancellationToken)
+                    ?? throw new AppValidationException("Assigned unit does not exist.");
+
+                var unitLeaseInfo = await leaseService.GetUnitLeaseInfoAsync(unit.Id, cancellationToken);
+                var availableRoom = unitLeaseInfo.Rooms.FirstOrDefault(r => r.AvailableSlots > 0)
+                    ?? throw new AppValidationException("Assigned unit does not have an available active room.");
+
+                var leaseStartDate = request.MoveInDate ?? DateTime.UtcNow.Date;
+                await leaseService.CreateAsync(new CreateLeaseRequestDto
+                {
+                    UnitId = unit.Id,
+                    RoomId = availableRoom.RoomId,
+                    TenantId = entity.Id,
+                    StartDate = leaseStartDate,
+                    MonthlyRent = unit.MonthlyRent,
+                    SecurityDeposit = unit.MonthlyRent,
+                    DueDayOfMonth = 1,
+                    Status = LeaseStatus.Active
+                }, cancellationToken);
             }
-        }
 
-        return ToDto(entity);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return ToDto(entity);
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+            else if (entity is not null && dbContext.Entry(entity).State != EntityState.Detached)
+            {
+                dbContext.Tenants.Remove(entity);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            throw;
+        }
     }
 
     public async Task<TenantDto> UpdateAsync(int id, UpdateTenantRequestDto request, CancellationToken cancellationToken = default)

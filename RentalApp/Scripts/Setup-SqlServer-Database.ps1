@@ -16,7 +16,12 @@ Write-Host ""
 # Step 1: Check if database exists and handle accordingly
 Write-Host "Step 1: Checking database status..." -ForegroundColor Green
 
-$connectionString = "Server=$ServerName;Integrated Security=true;Encrypt=false;TrustServerCertificate=true"
+$serverConnectionStringBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+$serverConnectionStringBuilder.DataSource = $ServerName
+$serverConnectionStringBuilder.IntegratedSecurity = $true
+$serverConnectionStringBuilder.Encrypt = $false
+$serverConnectionStringBuilder.TrustServerCertificate = $true
+$connectionString = $serverConnectionStringBuilder.ConnectionString
 
 try {
 	$connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
@@ -24,7 +29,9 @@ try {
 
 	$command = New-Object System.Data.SqlClient.SqlCommand
 	$command.Connection = $connection
-	$command.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name = '$DatabaseName'"
+	$command.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name = @databaseName"
+	$null = $command.Parameters.Add("@databaseName", [System.Data.SqlDbType]::NVarChar, 128)
+	$command.Parameters["@databaseName"].Value = $DatabaseName
 
 	$dbExists = $command.ExecuteScalar()
 	$connection.Close()
@@ -58,10 +65,17 @@ try {
 Write-Host ""
 Write-Host "Step 2: Applying EF Core migrations..." -ForegroundColor Green
 
-try {
-	$env:ASPNETCORE_ENVIRONMENT = "Development"
+$databaseConnectionStringBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $connectionString
+$databaseConnectionStringBuilder.InitialCatalog = $DatabaseName
+$databaseConnectionString = $databaseConnectionStringBuilder.ConnectionString
 
-	# This will create the database if it doesn't exist and apply all migrations
+try {
+	$previousEnvironment = $env:ASPNETCORE_ENVIRONMENT
+	$previousConnection = $env:ConnectionStrings__DefaultConnection
+	$env:ASPNETCORE_ENVIRONMENT = "Development"
+	$env:ConnectionStrings__DefaultConnection = $databaseConnectionString
+
+	# This will create the specified database if it doesn't exist and apply all migrations
 	dotnet ef database update --project RentalApp.csproj
 
 	if ($LASTEXITCODE -ne 0) {
@@ -73,6 +87,18 @@ try {
 } catch {
 	Write-Host "✗ Error during migration: $_" -ForegroundColor Red
 	exit 1
+} finally {
+	if ($null -ne $previousEnvironment) {
+		$env:ASPNETCORE_ENVIRONMENT = $previousEnvironment
+	} else {
+		Remove-Item Env:ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
+	}
+
+	if ($null -ne $previousConnection) {
+		$env:ConnectionStrings__DefaultConnection = $previousConnection
+	} else {
+		Remove-Item Env:ConnectionStrings__DefaultConnection -ErrorAction SilentlyContinue
+	}
 }
 
 # Step 3: Verify database and tables
@@ -80,8 +106,9 @@ Write-Host ""
 Write-Host "Step 3: Verifying database schema..." -ForegroundColor Green
 
 try {
-	$connectionString = "Server=$ServerName;Database=$DatabaseName;Integrated Security=true;Encrypt=false;TrustServerCertificate=true"
-	$connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
+	$verificationConnectionStringBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $connectionString
+	$verificationConnectionStringBuilder.InitialCatalog = $DatabaseName
+	$connection = New-Object System.Data.SqlClient.SqlConnection $verificationConnectionStringBuilder.ConnectionString
 	$connection.Open()
 
 	$command = New-Object System.Data.SqlClient.SqlCommand
@@ -102,6 +129,6 @@ Write-Host "Setup Complete!" -ForegroundColor Cyan
 Write-Host "Your SQL Server database '$DatabaseName' is ready for use." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Update appsettings.Production.json with your SQL Server connection details"
+Write-Host "1. Configure the production ConnectionStrings__DefaultConnection value outside source control"
 Write-Host "2. Test the application with 'dotnet run'"
-Write-Host "3. Verify all data migrations are complete"
+Write-Host "3. Verify the target database schema and data"

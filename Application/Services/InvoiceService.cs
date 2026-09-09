@@ -44,61 +44,67 @@ public class InvoiceService(
 
     public async Task<InvoiceDto> CreateAsync(CreateInvoiceRequestDto request, CancellationToken cancellationToken = default)
     {
-        await ValidateLeaseTenantAsync(request.LeaseId, request.TenantId, cancellationToken);
-        ValidateDates(request.InvoiceDate, request.DueDate);
-
-        var items = NormalizeItems(request.Items);
-        var subtotal = items.Sum(x => x.Amount);
-        var invoiceNumber = await invoiceNumberGenerator.GenerateAsync(cancellationToken);
-
-        var invoice = new Invoice
+        return await ExecuteInTransactionAsync(async () =>
         {
-            InvoiceNumber = invoiceNumber,
-            TenantId = request.TenantId,
-            LeaseId = request.LeaseId,
-            InvoiceDate = request.InvoiceDate.Date,
-            DueDate = request.DueDate.Date,
-            Subtotal = subtotal,
-            Total = subtotal,
-            Status = request.Status,
-            Notes = request.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            Items = items
-        };
+            await ValidateLeaseTenantAsync(request.LeaseId, request.TenantId, cancellationToken);
+            ValidateDates(request.InvoiceDate, request.DueDate);
 
-        dbContext.Invoices.Add(invoice);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            var items = NormalizeItems(request.Items);
+            var subtotal = items.Sum(x => x.Amount);
+            var invoiceNumber = await invoiceNumberGenerator.GenerateAsync(cancellationToken);
 
-        return await GetByIdAsync(invoice.Id, cancellationToken);
+            var invoice = new Invoice
+            {
+                InvoiceNumber = invoiceNumber,
+                TenantId = request.TenantId,
+                LeaseId = request.LeaseId,
+                InvoiceDate = request.InvoiceDate.Date,
+                DueDate = request.DueDate.Date,
+                Subtotal = subtotal,
+                Total = subtotal,
+                Status = request.Status,
+                Notes = request.Notes?.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Items = items
+            };
+
+            dbContext.Invoices.Add(invoice);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return await GetByIdAsync(invoice.Id, cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<InvoiceDto> UpdateAsync(int id, UpdateInvoiceRequestDto request, CancellationToken cancellationToken = default)
     {
-        var invoice = await dbContext.Invoices
-            .Include(x => x.Items)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new AppNotFoundException("Invoice not found.");
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            var invoice = await dbContext.Invoices
+                .Include(x => x.Items)
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new AppNotFoundException("Invoice not found.");
 
-        ValidateDates(request.InvoiceDate, request.DueDate);
+            ValidateDates(request.InvoiceDate, request.DueDate);
 
-        var normalizedItems = NormalizeItems(request.Items);
-        var subtotal = normalizedItems.Sum(x => x.Amount);
+            var normalizedItems = NormalizeItems(request.Items);
+            var subtotal = normalizedItems.Sum(x => x.Amount);
 
-        invoice.InvoiceDate = request.InvoiceDate.Date;
-        invoice.DueDate = request.DueDate.Date;
-        invoice.Status = request.Status;
-        invoice.Notes = request.Notes?.Trim();
-        invoice.Subtotal = subtotal;
-        invoice.Total = subtotal;
-        invoice.UpdatedAt = DateTime.UtcNow;
+            invoice.InvoiceDate = request.InvoiceDate.Date;
+            invoice.DueDate = request.DueDate.Date;
+            invoice.Status = request.Status;
+            invoice.Notes = request.Notes?.Trim();
+            invoice.Subtotal = subtotal;
+            invoice.Total = subtotal;
+            invoice.UpdatedAt = DateTime.UtcNow;
 
-        dbContext.InvoiceItems.RemoveRange(invoice.Items);
-        invoice.Items = normalizedItems;
+            dbContext.InvoiceItems.RemoveRange(invoice.Items);
+            invoice.Items = normalizedItems;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        return await GetByIdAsync(id, cancellationToken);
+            return await GetByIdAsync(id, cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<InvoiceDto> GenerateFromLeaseAsync(GenerateInvoiceRequestDto request, CancellationToken cancellationToken = default)
@@ -154,6 +160,35 @@ public class InvoiceService(
         if (lease.TenantId != tenantId)
         {
             throw new AppValidationException("Tenant does not match selected lease.");
+        }
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null &&
+            !string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal);
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken)
+            : null;
+
+        try
+        {
+            var result = await action();
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return result;
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            throw;
         }
     }
 

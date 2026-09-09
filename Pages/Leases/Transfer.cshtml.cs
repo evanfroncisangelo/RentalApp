@@ -78,7 +78,8 @@ public class TransferModel(ILeaseService leaseService, IUnitService unitService)
         {
             try
             {
-                var info = await leaseService.GetUnitLeaseInfoAsync(selectedUnitId.Value, cancellationToken);
+                var selectedUnit = selectedUnitId.GetValueOrDefault();
+                var info = await leaseService.GetUnitLeaseInfoAsync(selectedUnit, cancellationToken);
                 RoomOptions = info.Rooms.Where(x => x.AvailableSlots > 0)
                     .Select(x => new SelectListItem($"{x.RoomNumber} ({x.OccupiedCount}/{x.MaxCapacity})", x.RoomId.ToString()))
                     .ToList();

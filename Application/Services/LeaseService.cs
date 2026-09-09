@@ -84,181 +84,195 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
 
     public async Task<LeaseDto> CreateAsync(CreateLeaseRequestDto request, CancellationToken cancellationToken = default)
     {
-        ValidateLeaseDates(request.StartDate, request.EndDate);
-        ValidateDueDay(request.DueDayOfMonth);
-
-        var unit = await dbContext.Units.FirstOrDefaultAsync(x => x.Id == request.UnitId && x.IsActive, cancellationToken)
-            ?? throw new AppValidationException("Unit does not exist or is inactive.");
-
-        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
-            ?? throw new AppValidationException("Selected room is invalid for this unit.");
-
-        _ = await dbContext.Tenants.FirstOrDefaultAsync(x => x.Id == request.TenantId && x.IsActive, cancellationToken)
-            ?? throw new AppValidationException("Tenant does not exist or is inactive.");
-
-        var tenantActiveLease = await dbContext.Leases.AnyAsync(
-            x => x.TenantId == request.TenantId && x.Status == LeaseStatus.Active,
-            cancellationToken);
-
-        if (tenantActiveLease)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Tenant already has an active unit/room lease.");
-        }
+            ValidateLeaseDates(request.StartDate, request.EndDate);
+            ValidateDueDay(request.DueDayOfMonth);
 
-        var currentOccupancy = await dbContext.Leases.CountAsync(
-            x => x.RoomId == room.Id && x.Status == LeaseStatus.Active,
-            cancellationToken);
+            var unit = await dbContext.Units.FirstOrDefaultAsync(x => x.Id == request.UnitId && x.IsActive, cancellationToken)
+                ?? throw new AppValidationException("Unit does not exist or is inactive.");
 
-        if (currentOccupancy >= room.MaxCapacity)
-        {
-            throw new AppValidationException("Selected room is already at maximum capacity.");
-        }
+            var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
+                ?? throw new AppValidationException("Selected room is invalid for this unit.");
 
-        var lease = new Lease
-        {
-            UnitId = request.UnitId,
-            RoomId = request.RoomId,
-            TenantId = request.TenantId,
-            StartDate = request.StartDate.Date,
-            EndDate = request.EndDate?.Date,
-            MonthlyRent = request.MonthlyRent,
-            SecurityDeposit = request.SecurityDeposit,
-            DueDayOfMonth = request.DueDayOfMonth,
-            Status = request.Status,
-            Notes = request.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            _ = await dbContext.Tenants.FirstOrDefaultAsync(x => x.Id == request.TenantId && x.IsActive, cancellationToken)
+                ?? throw new AppValidationException("Tenant does not exist or is inactive.");
 
-        dbContext.Leases.Add(lease);
-        await RefreshUnitStatusAsync(unit.Id, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            var tenantActiveLease = await dbContext.Leases.AnyAsync(
+                x => x.TenantId == request.TenantId && x.Status == LeaseStatus.Active,
+                cancellationToken);
 
-        return await GetByIdAsync(lease.Id, cancellationToken);
+            if (tenantActiveLease)
+            {
+                throw new AppValidationException("Tenant already has an active unit/room lease.");
+            }
+
+            var currentOccupancy = await dbContext.Leases.CountAsync(
+                x => x.RoomId == room.Id && x.Status == LeaseStatus.Active,
+                cancellationToken);
+
+            if (currentOccupancy >= room.MaxCapacity)
+            {
+                throw new AppValidationException("Selected room is already at maximum capacity.");
+            }
+
+            var lease = new Lease
+            {
+                UnitId = request.UnitId,
+                RoomId = request.RoomId,
+                TenantId = request.TenantId,
+                StartDate = request.StartDate.Date,
+                EndDate = request.EndDate?.Date,
+                MonthlyRent = request.MonthlyRent,
+                SecurityDeposit = request.SecurityDeposit,
+                DueDayOfMonth = request.DueDayOfMonth,
+                Status = request.Status,
+                Notes = request.Notes?.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            dbContext.Leases.Add(lease);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await RefreshUnitStatusAsync(unit.Id, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return await GetByIdAsync(lease.Id, cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<LeaseDto> UpdateAsync(int id, UpdateLeaseRequestDto request, CancellationToken cancellationToken = default)
     {
-        ValidateLeaseDates(request.StartDate, request.EndDate);
-        ValidateDueDay(request.DueDayOfMonth);
-
-        var lease = await dbContext.Leases
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new AppNotFoundException("Lease not found.");
-
-        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
-            ?? throw new AppValidationException("Selected room is invalid for this unit.");
-
-        var currentOccupancy = await dbContext.Leases.CountAsync(
-            x => x.RoomId == room.Id && x.Status == LeaseStatus.Active && x.Id != lease.Id,
-            cancellationToken);
-
-        if (lease.Status == LeaseStatus.Active && currentOccupancy >= room.MaxCapacity)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Selected room is already at maximum capacity.");
-        }
+            ValidateLeaseDates(request.StartDate, request.EndDate);
+            ValidateDueDay(request.DueDayOfMonth);
 
-        var previousUnitId = lease.UnitId;
+            var lease = await dbContext.Leases
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new AppNotFoundException("Lease not found.");
 
-        lease.UnitId = request.UnitId;
-        lease.RoomId = request.RoomId;
-        lease.StartDate = request.StartDate.Date;
-        lease.EndDate = request.EndDate?.Date;
-        lease.MonthlyRent = request.MonthlyRent;
-        lease.SecurityDeposit = request.SecurityDeposit;
-        lease.DueDayOfMonth = request.DueDayOfMonth;
-        lease.Notes = request.Notes?.Trim();
-        lease.UpdatedAt = DateTime.UtcNow;
+            var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
+                ?? throw new AppValidationException("Selected room is invalid for this unit.");
 
-        await RefreshUnitStatusAsync(previousUnitId, cancellationToken);
-        await RefreshUnitStatusAsync(request.UnitId, cancellationToken);
+            var currentOccupancy = await dbContext.Leases.CountAsync(
+                x => x.RoomId == room.Id && x.Status == LeaseStatus.Active && x.Id != lease.Id,
+                cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            if (lease.Status == LeaseStatus.Active && currentOccupancy >= room.MaxCapacity)
+            {
+                throw new AppValidationException("Selected room is already at maximum capacity.");
+            }
 
-        return await GetByIdAsync(id, cancellationToken);
+            var previousUnitId = lease.UnitId;
+
+            lease.UnitId = request.UnitId;
+            lease.RoomId = request.RoomId;
+            lease.StartDate = request.StartDate.Date;
+            lease.EndDate = request.EndDate?.Date;
+            lease.MonthlyRent = request.MonthlyRent;
+            lease.SecurityDeposit = request.SecurityDeposit;
+            lease.DueDayOfMonth = request.DueDayOfMonth;
+            lease.Notes = request.Notes?.Trim();
+            lease.UpdatedAt = DateTime.UtcNow;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await RefreshUnitStatusAsync(previousUnitId, cancellationToken);
+            await RefreshUnitStatusAsync(request.UnitId, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return await GetByIdAsync(id, cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<LeaseDto> MoveOutAsync(int id, MoveOutRequestDto request, CancellationToken cancellationToken = default)
     {
-        var lease = await dbContext.Leases
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new AppNotFoundException("Lease not found.");
-
-        if (lease.Status != LeaseStatus.Active)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Only active leases can be moved out.");
-        }
+            var lease = await dbContext.Leases
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new AppNotFoundException("Lease not found.");
 
-        if (request.MoveOutDate.Date < lease.StartDate.Date)
-        {
-            throw new AppValidationException("Move-out date cannot be before lease start date.");
-        }
+            if (lease.Status != LeaseStatus.Active)
+            {
+                throw new AppValidationException("Only active leases can be moved out.");
+            }
 
-        lease.EndDate = request.MoveOutDate.Date;
-        lease.Status = LeaseStatus.Ended;
-        lease.Notes = string.IsNullOrWhiteSpace(request.Notes)
-            ? lease.Notes
-            : $"{lease.Notes}\nMove-out: {request.Notes.Trim()}".Trim();
-        lease.UpdatedAt = DateTime.UtcNow;
+            if (request.MoveOutDate.Date < lease.StartDate.Date)
+            {
+                throw new AppValidationException("Move-out date cannot be before lease start date.");
+            }
 
-        await RefreshUnitStatusAsync(lease.UnitId, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            lease.EndDate = request.MoveOutDate.Date;
+            lease.Status = LeaseStatus.Ended;
+            lease.Notes = string.IsNullOrWhiteSpace(request.Notes)
+                ? lease.Notes
+                : $"{lease.Notes}\nMove-out: {request.Notes.Trim()}".Trim();
+            lease.UpdatedAt = DateTime.UtcNow;
 
-        return await GetByIdAsync(id, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await RefreshUnitStatusAsync(lease.UnitId, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return await GetByIdAsync(id, cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<LeaseDto> TransferAsync(TransferLeaseRequestDto request, CancellationToken cancellationToken = default)
     {
-        var currentLease = await dbContext.Leases
-            .FirstOrDefaultAsync(x => x.Id == request.CurrentLeaseId, cancellationToken)
-            ?? throw new AppNotFoundException("Current lease not found.");
-
-        if (currentLease.Status != LeaseStatus.Active)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new AppValidationException("Only active leases can be transferred.");
-        }
+            var currentLease = await dbContext.Leases
+                .FirstOrDefaultAsync(x => x.Id == request.CurrentLeaseId, cancellationToken)
+                ?? throw new AppNotFoundException("Current lease not found.");
 
-        if (request.TransferDate.Date < currentLease.StartDate.Date)
-        {
-            throw new AppValidationException("Transfer date cannot be earlier than lease start date.");
-        }
+            if (currentLease.Status != LeaseStatus.Active)
+            {
+                throw new AppValidationException("Only active leases can be transferred.");
+            }
 
-        var target = await GetUnitLeaseInfoAsync(request.NewUnitId, cancellationToken);
-        var room = target.Rooms.FirstOrDefault(x => x.RoomId == request.NewRoomId)
-            ?? throw new AppValidationException("Selected target room is invalid.");
+            if (request.TransferDate.Date < currentLease.StartDate.Date)
+            {
+                throw new AppValidationException("Transfer date cannot be earlier than lease start date.");
+            }
 
-        if (room.AvailableSlots <= 0)
-        {
-            throw new AppValidationException("Selected target room has no remaining vacancy.");
-        }
+            var target = await GetUnitLeaseInfoAsync(request.NewUnitId, cancellationToken);
+            var room = target.Rooms.FirstOrDefault(x => x.RoomId == request.NewRoomId)
+                ?? throw new AppValidationException("Selected target room is invalid.");
 
-        currentLease.Status = LeaseStatus.Ended;
-        currentLease.EndDate = request.TransferDate.Date;
-        currentLease.UpdatedAt = DateTime.UtcNow;
+            if (room.AvailableSlots <= 0)
+            {
+                throw new AppValidationException("Selected target room has no remaining vacancy.");
+            }
 
-        var newLease = new Lease
-        {
-            UnitId = request.NewUnitId,
-            RoomId = request.NewRoomId,
-            TenantId = currentLease.TenantId,
-            StartDate = request.TransferDate.Date,
-            MonthlyRent = target.MonthlyRent,
-            SecurityDeposit = currentLease.SecurityDeposit,
-            DueDayOfMonth = currentLease.DueDayOfMonth,
-            Status = LeaseStatus.Active,
-            Notes = request.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            currentLease.Status = LeaseStatus.Ended;
+            currentLease.EndDate = request.TransferDate.Date;
+            currentLease.UpdatedAt = DateTime.UtcNow;
 
-        dbContext.Leases.Add(newLease);
+            var newLease = new Lease
+            {
+                UnitId = request.NewUnitId,
+                RoomId = request.NewRoomId,
+                TenantId = currentLease.TenantId,
+                StartDate = request.TransferDate.Date,
+                MonthlyRent = target.MonthlyRent,
+                SecurityDeposit = currentLease.SecurityDeposit,
+                DueDayOfMonth = currentLease.DueDayOfMonth,
+                Status = LeaseStatus.Active,
+                Notes = request.Notes?.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-        await RefreshUnitStatusAsync(currentLease.UnitId, cancellationToken);
-        await RefreshUnitStatusAsync(request.NewUnitId, cancellationToken);
+            dbContext.Leases.Add(newLease);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await RefreshUnitStatusAsync(currentLease.UnitId, cancellationToken);
+            await RefreshUnitStatusAsync(request.NewUnitId, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        return await GetByIdAsync(newLease.Id, cancellationToken);
+            return await GetByIdAsync(newLease.Id, cancellationToken);
+        }, cancellationToken);
     }
 
     private async Task RefreshUnitStatusAsync(int unitId, CancellationToken cancellationToken)
@@ -304,6 +318,28 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
 
         unit.Status = allRoomsOccupied ? UnitStatus.Occupied : UnitStatus.Available;
         unit.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction is not null ||
+            string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal))
+        {
+            return await action();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var result = await action();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private static void ValidateLeaseDates(DateTime startDate, DateTime? endDate)
