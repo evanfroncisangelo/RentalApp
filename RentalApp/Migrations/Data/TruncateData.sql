@@ -1,5 +1,6 @@
 -- Truncate all data except AspNetUsers (login credentials)
 -- This script should be run after backup in case of issues
+-- Includes utility data cleanup
 
 -- Disable foreign key checks temporarily
 ALTER TABLE [Invoices] NOCHECK CONSTRAINT ALL;
@@ -11,6 +12,11 @@ ALTER TABLE [Rooms] NOCHECK CONSTRAINT ALL;
 ALTER TABLE [Units] NOCHECK CONSTRAINT ALL;
 ALTER TABLE [Properties] NOCHECK CONSTRAINT ALL;
 ALTER TABLE [Tenants] NOCHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityCustomerCredits] NOCHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityBillPayments] NOCHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityBills] NOCHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityCustomers] NOCHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityAuditLogs] NOCHECK CONSTRAINT ALL;
 ALTER TABLE [AspNetUserRoles] NOCHECK CONSTRAINT ALL;
 
 -- Delete all data (keeping AspNetUsers and AspNetRoles)
@@ -23,6 +29,11 @@ DELETE FROM [Rooms];
 DELETE FROM [Units];
 DELETE FROM [Properties];
 DELETE FROM [Tenants];
+DELETE FROM [UtilityCustomerCredits];
+DELETE FROM [UtilityBillPayments];
+DELETE FROM [UtilityBills];
+DELETE FROM [UtilityCustomers];
+DELETE FROM [UtilityAuditLogs];
 
 -- Reset identity seeds
 DBCC CHECKIDENT ('Tenants', RESEED, 0);
@@ -34,6 +45,11 @@ DBCC CHECKIDENT ('Payments', RESEED, 0);
 DBCC CHECKIDENT ('Expenses', RESEED, 0);
 DBCC CHECKIDENT ('Invoices', RESEED, 0);
 DBCC CHECKIDENT ('InvoiceItems', RESEED, 0);
+DBCC CHECKIDENT ('UtilityBills', RESEED, 0);
+DBCC CHECKIDENT ('UtilityBillPayments', RESEED, 0);
+DBCC CHECKIDENT ('UtilityCustomers', RESEED, 0);
+DBCC CHECKIDENT ('UtilityCustomerCredits', RESEED, 0);
+DBCC CHECKIDENT ('UtilityAuditLogs', RESEED, 0);
 
 -- Re-enable foreign key checks
 ALTER TABLE [Invoices] CHECK CONSTRAINT ALL;
@@ -45,6 +61,11 @@ ALTER TABLE [Rooms] CHECK CONSTRAINT ALL;
 ALTER TABLE [Units] CHECK CONSTRAINT ALL;
 ALTER TABLE [Properties] CHECK CONSTRAINT ALL;
 ALTER TABLE [Tenants] CHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityCustomerCredits] CHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityBillPayments] CHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityBills] CHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityCustomers] CHECK CONSTRAINT ALL;
+ALTER TABLE [UtilityAuditLogs] CHECK CONSTRAINT ALL;
 ALTER TABLE [AspNetUserRoles] CHECK CONSTRAINT ALL;
 
 -- Verify counts
@@ -54,4 +75,6 @@ SELECT 'Units: ' + CAST(COUNT(*) AS VARCHAR) FROM Units;
 SELECT 'Rooms: ' + CAST(COUNT(*) AS VARCHAR) FROM Rooms;
 SELECT 'Leases: ' + CAST(COUNT(*) AS VARCHAR) FROM Leases;
 SELECT 'Payments: ' + CAST(COUNT(*) AS VARCHAR) FROM Payments;
+SELECT 'UtilityBills: ' + CAST(COUNT(*) AS VARCHAR) FROM UtilityBills;
+SELECT 'UtilityCustomers: ' + CAST(COUNT(*) AS VARCHAR) FROM UtilityCustomers;
 SELECT 'AspNetUsers: ' + CAST(COUNT(*) AS VARCHAR) FROM AspNetUsers;

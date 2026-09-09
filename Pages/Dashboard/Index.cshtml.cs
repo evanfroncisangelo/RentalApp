@@ -24,6 +24,11 @@ public class IndexModel(IDashboardService dashboardService) : PageModel
             Year = 2026;
         }
 
+        // Disable caching to ensure fresh data
+        Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        Response.Headers.Add("Pragma", "no-cache");
+        Response.Headers.Add("Expires", "0");
+
         DisplayName = User.Identity?.Name ?? "User";
         Summary = await dashboardService.GetSummaryAsync(Year, cancellationToken);
         return Page();

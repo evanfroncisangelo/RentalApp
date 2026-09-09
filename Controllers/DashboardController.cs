@@ -19,6 +19,11 @@ public class DashboardController(IDashboardService dashboardService) : Controlle
             selectedYear = 2026;
         }
 
+        // Disable caching to ensure fresh data
+        Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        Response.Headers.Add("Pragma", "no-cache");
+        Response.Headers.Add("Expires", "0");
+
         var summary = await dashboardService.GetSummaryAsync(selectedYear, cancellationToken);
         return Ok(summary);
     }
