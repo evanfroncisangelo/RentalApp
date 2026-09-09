@@ -124,7 +124,7 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
             MonthlyRent = request.MonthlyRent,
             SecurityDeposit = request.SecurityDeposit,
             DueDayOfMonth = request.DueDayOfMonth,
-            Status = LeaseStatus.Active,
+            Status = request.Status,
             Notes = request.Notes?.Trim(),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

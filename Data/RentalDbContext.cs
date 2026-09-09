@@ -357,7 +357,7 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.ToTable(t =>
             {
                 t.HasCheckConstraint("CK_UtilityBills_Amount_NonNegative", "Amount >= 0");
-                t.HasCheckConstraint("CK_UtilityBills_BillingPeriod_Length", "length(BillingPeriod) = 7");
+                t.HasCheckConstraint("CK_UtilityBills_BillingPeriod_Length", "LEN(BillingPeriod) = 7");
             });
         });
 

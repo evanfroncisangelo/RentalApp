@@ -1,5 +1,7 @@
 namespace RentalApp.Application.DTOs.Leases;
 
+using RentalApp.Domain.Enums;
+
 public class CreateLeaseRequestDto
 {
     public int UnitId { get; set; }
@@ -10,5 +12,6 @@ public class CreateLeaseRequestDto
     public decimal MonthlyRent { get; set; }
     public decimal SecurityDeposit { get; set; }
     public int DueDayOfMonth { get; set; } = 1;
+    public LeaseStatus Status { get; set; } = LeaseStatus.Active;
     public string? Notes { get; set; }
 }

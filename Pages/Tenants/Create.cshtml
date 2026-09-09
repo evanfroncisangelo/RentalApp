@@ -45,33 +45,53 @@
 
     <div class="row">
         <div class="col-md-6 mb-3">
-            <label asp-for="Input.UnitId" class="form-label"></label>
-            <select asp-for="Input.UnitId" asp-items="Model.UnitOptions" class="form-select" id="unitNumberSelect">
-                <option value="">Select Unit</option>
-            </select>
-            <div class="form-text">Only units with available capacity are shown.</div>
-            <span asp-validation-for="Input.UnitId" class="text-danger"></span>
+            <label asp-for="Input.DateOfBirth" class="form-label"></label>
+            <input asp-for="Input.DateOfBirth" class="form-control" type="date" />
+            <span asp-validation-for="Input.DateOfBirth" class="text-danger"></span>
         </div>
         <div class="col-md-6 mb-3">
-            <label class="form-label">Max Capacity</label>
-            <input type="text" class="form-control" id="unitCapacityDisplay" value="@Model.SelectedUnitCapacity" readonly />
-            <div class="form-text">Current occupancy / max capacity for selected unit.</div>
+            <label asp-for="Input.MoveInDate" class="form-label"></label>
+            <input asp-for="Input.MoveInDate" class="form-control" type="date" />
+            <span asp-validation-for="Input.MoveInDate" class="text-danger"></span>
+        </div>
+    </div>
+
+    <!-- Unit and Capacity Section - Lower in form -->
+    <div class="card card-sm mb-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">Unit Assignment</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Input.UnitId" class="form-label"></label>
+                    <select asp-for="Input.UnitId" asp-items="Model.UnitOptions" class="form-select" id="unitNumberSelect">
+                        <option value="">Select Unit</option>
+                    </select>
+                    <div class="form-text">Only units with available capacity are shown.</div>
+                    <span asp-validation-for="Input.UnitId" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Max Capacity</label>
+                    <input type="number" class="form-control" id="unitCapacityDisplay" value="@Model.SelectedUnitCapacity" readonly />
+                    <div class="form-text">Current occupancy / max capacity for selected unit.</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-0">
+                    <label asp-for="Input.IsActive" class="form-label">Status</label>
+                    <select asp-for="Input.IsActive" class="form-select">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                    <div class="form-text">Set tenant status as active or inactive.</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <input type="hidden" asp-for="Input.RoomNumber" />
-
-    <div class="mb-3">
-        <label asp-for="Input.DateOfBirth" class="form-label"></label>
-        <input asp-for="Input.DateOfBirth" class="form-control" type="date" />
-        <span asp-validation-for="Input.DateOfBirth" class="text-danger"></span>
-    </div>
-
-    <div class="mb-3">
-        <label asp-for="Input.Notes" class="form-label"></label>
-        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
-        <span asp-validation-for="Input.Notes" class="text-danger"></span>
-    </div>
 
     <div class="d-flex justify-content-end gap-2">
         <a asp-page="/Tenants/Index" class="btn btn-outline-secondary">Cancel</a>

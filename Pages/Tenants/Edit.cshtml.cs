@@ -36,7 +36,9 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
                 UnitNumber = item.UnitNumber,
                 RoomNumber = item.RoomNumber,
                 DateOfBirth = item.DateOfBirth,
-                Notes = item.Notes
+                MoveInDate = item.MoveInDate,
+                Notes = item.Notes,
+                IsActive = item.IsActive
             };
 
             await LoadOptionsAsync(cancellationToken, null, Input.Id);
@@ -95,7 +97,9 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
             UnitNumber = Input.UnitNumber,
             RoomNumber = Input.RoomNumber,
             DateOfBirth = Input.DateOfBirth,
-            Notes = Input.Notes
+            MoveInDate = Input.MoveInDate,
+            Notes = Input.Notes,
+            IsActive = Input.IsActive
         }, cancellationToken);
 
         return RedirectToPage("/Tenants/Index");
@@ -133,8 +137,15 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
         [DataType(DataType.Date)]
         public DateTime? DateOfBirth { get; set; }
 
+        [DataType(DataType.Date)]
+        [Display(Name = "Move In Date")]
+        public DateTime? MoveInDate { get; set; }
+
         [MaxLength(2000)]
         public string? Notes { get; set; }
+
+        [Display(Name = "Status")]
+        public bool IsActive { get; set; }
     }
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken, string? _, int? currentTenantId = null)

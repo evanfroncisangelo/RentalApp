@@ -13,6 +13,7 @@ using RentalApp.Application.Validators.Auth;
 using RentalApp.Data;
 using RentalApp.Domain.Entities;
 using RentalApp.Infrastructure.Configuration;
+using RentalApp.Infrastructure.Operations;
 using RentalApp.Infrastructure.Pdf;
 using RentalApp.Infrastructure.Security;
 using RentalApp.Middleware;
@@ -26,7 +27,13 @@ builder.Services.AddHostedService<ApplicationDataDirectoryInitializer>();
 
 builder.Services.AddDbContext<RentalDbContext>(options =>
 {
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+	var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+		?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
+
+	options.UseSqlServer(connectionString, sqlOptions =>
+	{
+		sqlOptions.EnableRetryOnFailure();
+	});
 });
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -47,6 +54,7 @@ builder.Services
         options.Cookie.HttpOnly = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
     })
     .AddJwtBearer(options =>
@@ -66,7 +74,7 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddDbContextCheck<RentalDbContext>();
 
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
@@ -91,6 +99,7 @@ builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IInvoiceNumberGenerator, InvoiceNumberGenerator>();
 builder.Services.AddScoped<IInvoicePdfRenderer, SimpleInvoicePdfRenderer>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IDatabaseBackupService, SqlServerDatabaseBackupService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 builder.Services.AddFluentValidationAutoValidation();
@@ -132,3 +141,4 @@ app.MapControllers();
 app.MapRazorPages().WithStaticAssets();
 
 app.Run();
+

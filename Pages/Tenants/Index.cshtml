@@ -54,18 +54,6 @@
                             </td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-secondary" asp-page="/Tenants/Edit" asp-route-id="@item.Id">Edit</a>
-                                @if (item.IsActive)
-                                {
-                                    <form method="post" asp-page-handler="Deactivate" asp-route-id="@item.Id" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this tenant?');">Deactivate</button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <form method="post" asp-page-handler="Reactivate" asp-route-id="@item.Id" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Reactivate this tenant?');">Reactivate</button>
-                                    </form>
-                                }
                             </td>
                         </tr>
                     }

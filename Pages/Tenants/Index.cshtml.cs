@@ -23,16 +23,4 @@ public class IndexModel(ITenantService tenantService) : PageModel
         var items = await tenantService.GetAllAsync(Search, cancellationToken);
         PagedItems = PagedResult<TenantDto>.Create(items, PageNumber, 10);
     }
-
-    public async Task<IActionResult> OnPostDeactivateAsync(int id, CancellationToken cancellationToken)
-    {
-        await tenantService.DeactivateAsync(id, cancellationToken);
-        return RedirectToPage(new { Search, PageNumber });
-    }
-
-    public async Task<IActionResult> OnPostReactivateAsync(int id, CancellationToken cancellationToken)
-    {
-        await tenantService.ReactivateAsync(id, cancellationToken);
-        return RedirectToPage(new { Search, PageNumber });
-    }
 }

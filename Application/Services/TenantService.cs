@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using RentalApp.Application.DTOs.Leases;
 using RentalApp.Application.DTOs.Tenants;
 using RentalApp.Application.Exceptions;
 using RentalApp.Application.Interfaces;
 using RentalApp.Data;
 using RentalApp.Domain.Entities;
+using RentalApp.Domain.Enums;
 
 namespace RentalApp.Application.Services;
 
-public class TenantService(RentalDbContext dbContext) : ITenantService
+public class TenantService(RentalDbContext dbContext, ILeaseService leaseService) : ITenantService
 {
     public async Task<IReadOnlyList<TenantDto>> GetAllAsync(string? search, CancellationToken cancellationToken = default)
     {
@@ -53,14 +55,51 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
             UnitNumber = request.UnitNumber?.Trim(),
             RoomNumber = request.RoomNumber?.Trim(),
             DateOfBirth = request.DateOfBirth,
+            MoveInDate = request.MoveInDate,
             Notes = request.Notes?.Trim(),
-            IsActive = true,
+            IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         dbContext.Tenants.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // If tenant is assigned to a unit and is active, create an active lease
+        if (entity.IsActive && entity.UnitId.HasValue)
+        {
+            // Get the unit to find rent and room info
+            var unit = await dbContext.Units
+                .AsNoTracking()
+                .Include(u => u.Rooms)
+                .FirstOrDefaultAsync(u => u.Id == entity.UnitId, cancellationToken);
+
+            if (unit != null)
+            {
+                // Find first available active room
+                var availableRoom = unit.Rooms
+                    .FirstOrDefault(r => r.IsActive);
+
+                if (availableRoom != null)
+                    {
+                        // Create active lease with MoveInDate as StartDate
+                        // SecurityDeposit defaults to one month's rent if not customized
+                        var leaseStartDate = request.MoveInDate ?? DateTime.UtcNow.Date;
+                        await leaseService.CreateAsync(new CreateLeaseRequestDto
+                        {
+                            UnitId = unit.Id,
+                            RoomId = availableRoom.Id,
+                            TenantId = entity.Id,
+                            StartDate = leaseStartDate,
+                            MonthlyRent = unit.MonthlyRent,
+                            SecurityDeposit = unit.MonthlyRent, // Default to 1 month rent
+                            DueDayOfMonth = 1,
+                            Status = LeaseStatus.Active
+                        }, cancellationToken);
+                    }
+            }
+        }
+
         return ToDto(entity);
     }
 
@@ -79,7 +118,9 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
         entity.UnitNumber = request.UnitNumber?.Trim();
         entity.RoomNumber = request.RoomNumber?.Trim();
         entity.DateOfBirth = request.DateOfBirth;
+        entity.MoveInDate = request.MoveInDate;
         entity.Notes = request.Notes?.Trim();
+        entity.IsActive = request.IsActive;
         entity.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -122,6 +163,7 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
         UnitNumber = entity.UnitNumber,
         RoomNumber = entity.RoomNumber,
         DateOfBirth = entity.DateOfBirth,
+        MoveInDate = entity.MoveInDate,
         Notes = entity.Notes,
         IsActive = entity.IsActive
     };

@@ -1,27 +1,56 @@
 # RentalApp Production Checklist
 
-- [ ] Production environment configured (`ASPNETCORE_ENVIRONMENT=Production`)
-- [ ] HTTPS verified on deployed MonsterASP URL
-- [ ] HSTS verified in Production responses
-- [ ] Production error handling verified (no stack traces/details)
-- [ ] Swagger disabled or protected in Production
+## Hosting
+- [ ] MonsterASP website created
+- [ ] .NET 10 runtime confirmed
+- [ ] Production hostname confirmed
+- [ ] HTTPS confirmed
+- [ ] Writable persistent application-data directory confirmed
+
+## Configuration
+- [ ] ASPNETCORE_ENVIRONMENT configured
+- [ ] Production SQLite connection configured
+- [ ] JWT issuer configured
+- [ ] JWT audience configured
+- [ ] Strong JWT key configured
+- [ ] Application data paths configured
+
+## GitHub
+- [ ] Production secrets configured
+- [ ] Deployment workflow enabled
+- [ ] Database excluded from repository
+- [ ] Database excluded from publish
+- [ ] Build succeeds
+- [ ] Tests succeed
+- [ ] Deployment succeeds
+
+## Database
+- [ ] Production database created
+- [ ] Latest schema applied
+- [ ] Existing data verified
+- [ ] Backup tested
+- [ ] Restore procedure tested
+- [ ] Redeployment does not overwrite database
+
+## Security
 - [ ] Authentication verified
 - [ ] Authorization verified
-- [ ] CSRF verified for browser state-changing requests
-- [ ] Input validation verified
-- [ ] Upload validation verified (if upload features are enabled)
-- [ ] Private files protected
-- [ ] SQLite database outside `wwwroot`
-- [ ] SQLite backup process verified
-- [ ] SQLite restore process tested
-- [ ] Database migrations verified
-- [ ] No production database committed to Git
-- [ ] No secrets in Git
-- [ ] GitHub repository secrets configured
-- [ ] GitHub Actions workflow succeeds
-- [ ] Release build succeeds
-- [ ] Tests succeed
-- [ ] Production deployment succeeds
-- [ ] `/health` endpoint works
-- [ ] Logs reviewed: no secrets/token leakage
-- [ ] Rollback procedure documented and tested
+- [ ] CSRF protection verified
+- [ ] HTTPS verified
+- [ ] Security headers verified
+- [ ] Production Swagger disabled
+- [ ] Sensitive files inaccessible
+- [ ] Secrets not committed
+
+## Functional Smoke Test
+- [ ] Login
+- [ ] Dashboard
+- [ ] Tenant
+- [ ] Apartment/unit
+- [ ] Room
+- [ ] Payment
+- [ ] Expense
+- [ ] Invoice
+- [ ] Utility
+- [ ] Reports
+- [ ] Logout

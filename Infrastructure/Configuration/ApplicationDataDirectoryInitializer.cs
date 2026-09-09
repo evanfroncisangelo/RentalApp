@@ -5,7 +5,6 @@ namespace RentalApp.Infrastructure.Configuration;
 public sealed class ApplicationDataDirectoryInitializer(
     IOptions<ApplicationDataOptions> options,
     IWebHostEnvironment environment,
-    IConfiguration configuration,
     ILogger<ApplicationDataDirectoryInitializer> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -29,18 +28,6 @@ public sealed class ApplicationDataDirectoryInitializer(
             directories.Add(ApplicationDataPathHelper.ResolvePath(appData.BackupsPath, environment.ContentRootPath));
         }
 
-        var dbConnection = configuration.GetConnectionString("DefaultConnection");
-        var dbSource = ApplicationDataPathHelper.GetSqliteDataSourcePath(dbConnection);
-        if (!string.IsNullOrWhiteSpace(dbSource))
-        {
-            var resolvedDbPath = ApplicationDataPathHelper.ResolvePath(dbSource, environment.ContentRootPath);
-            var dbDirectory = Path.GetDirectoryName(resolvedDbPath);
-            if (!string.IsNullOrWhiteSpace(dbDirectory))
-            {
-                directories.Add(dbDirectory);
-            }
-        }
-
         var uniqueDirectories = directories
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -48,7 +35,7 @@ public sealed class ApplicationDataDirectoryInitializer(
 
         foreach (var directory in uniqueDirectories)
         {
-            if (directory.StartsWith(environment.WebRootPath ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(environment.WebRootPath) && ApplicationDataPathHelper.IsPathInsideDirectory(directory, environment.WebRootPath))
             {
                 throw new InvalidOperationException("Application data directory must not be inside wwwroot.");
             }

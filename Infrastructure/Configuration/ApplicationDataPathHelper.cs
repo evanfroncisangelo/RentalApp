@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 
 namespace RentalApp.Infrastructure.Configuration;
 
@@ -12,25 +12,53 @@ public static class ApplicationDataPathHelper
         }
 
         return Path.IsPathRooted(path)
-            ? path
+            ? Path.GetFullPath(path)
             : Path.GetFullPath(Path.Combine(contentRootPath, path));
     }
 
-    public static string? GetSqliteDataSourcePath(string? connectionString)
+    public static SqlConnectionStringBuilder GetSqlServerConnectionStringBuilder(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return null;
+            throw new InvalidOperationException("Connection string is required.");
         }
 
-        var builder = new SqliteConnectionStringBuilder(connectionString);
-        var dataSource = builder.DataSource;
+        return new SqlConnectionStringBuilder(connectionString);
+    }
 
-        if (string.IsNullOrWhiteSpace(dataSource) || string.Equals(dataSource, ":memory:", StringComparison.OrdinalIgnoreCase))
+    public static string GetSqlServerDatabaseName(string? connectionString)
+    {
+        var builder = GetSqlServerConnectionStringBuilder(connectionString);
+        var databaseName = string.IsNullOrWhiteSpace(builder.InitialCatalog)
+            ? builder["Database"]?.ToString()
+            : builder.InitialCatalog;
+
+        if (string.IsNullOrWhiteSpace(databaseName))
         {
-            return null;
+            throw new InvalidOperationException("DefaultConnection must include a SQL Server database name.");
         }
 
-        return dataSource;
+        return databaseName;
+    }
+
+    public static string BuildSqlServerConnectionString(string? connectionString, string initialCatalog)
+    {
+        if (string.IsNullOrWhiteSpace(initialCatalog))
+        {
+            throw new InvalidOperationException("A SQL Server database name is required.");
+        }
+
+        var builder = GetSqlServerConnectionStringBuilder(connectionString);
+        builder.InitialCatalog = initialCatalog;
+        return builder.ConnectionString;
+    }
+
+    public static bool IsPathInsideDirectory(string candidatePath, string directoryPath)
+    {
+        var candidateFull = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var directoryFull = Path.GetFullPath(directoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        var relative = Path.GetRelativePath(directoryFull, candidateFull);
+        return !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
     }
 }

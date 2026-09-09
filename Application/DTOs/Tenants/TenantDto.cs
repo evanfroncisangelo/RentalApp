@@ -12,6 +12,7 @@ public class TenantDto
     public string? UnitNumber { get; set; }
     public string? RoomNumber { get; set; }
     public DateTime? DateOfBirth { get; set; }
+    public DateTime? MoveInDate { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; }
 }
