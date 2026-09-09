@@ -64,7 +64,11 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
     public async Task<UnitDto> CreateAsync(CreateUnitRequestDto request, CancellationToken cancellationToken = default)
     {
-        await ValidateAsync(request.PropertyId, request.RoomCount, request.RoomMaxCapacity, cancellationToken);
+        var propertyExists = await dbContext.Properties.AnyAsync(x => x.Id == request.PropertyId && x.IsActive, cancellationToken);
+        if (!propertyExists)
+        {
+            throw new AppValidationException("Selected property does not exist or is inactive.");
+        }
 
         var entity = new Unit
         {
@@ -74,8 +78,7 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             Status = request.Status,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            Rooms = BuildRoomList(request.RoomCount, request.RoomMaxCapacity)
+            UpdatedAt = DateTime.UtcNow
         };
 
         dbContext.Units.Add(entity);
@@ -86,66 +89,21 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
     public async Task<UnitDto> UpdateAsync(int id, UpdateUnitRequestDto request, CancellationToken cancellationToken = default)
     {
-        await ValidateAsync(request.PropertyId, request.RoomCount, request.RoomMaxCapacity, cancellationToken);
+        var propertyExists = await dbContext.Properties.AnyAsync(x => x.Id == request.PropertyId && x.IsActive, cancellationToken);
+        if (!propertyExists)
+        {
+            throw new AppValidationException("Selected property does not exist or is inactive.");
+        }
 
         var entity = await dbContext.Units
-            .Include(x => x.Rooms)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppNotFoundException("Unit not found.");
-
-        var activeLeasesByRoom = await dbContext.Leases
-            .AsNoTracking()
-            .Where(x => x.UnitId == id && x.Status == LeaseStatus.Active)
-            .GroupBy(x => x.RoomId)
-            .Select(x => x.Key)
-            .ToListAsync(cancellationToken);
 
         entity.PropertyId = request.PropertyId;
         entity.UnitNumber = request.UnitNumber.Trim();
         entity.MonthlyRent = request.MonthlyRent;
         entity.Status = request.Status;
         entity.UpdatedAt = DateTime.UtcNow;
-
-        var currentRooms = entity.Rooms.OrderBy(x => x.RoomNumber).ToList();
-
-        if (request.RoomCount < currentRooms.Count)
-        {
-            var removableRooms = currentRooms
-                .Where(r => !activeLeasesByRoom.Contains(r.Id))
-                .OrderByDescending(r => r.RoomNumber)
-                .Take(currentRooms.Count - request.RoomCount)
-                .ToList();
-
-            if (removableRooms.Count < currentRooms.Count - request.RoomCount)
-            {
-                throw new AppValidationException("Cannot reduce room count because some rooms have active tenants.");
-            }
-
-            dbContext.Rooms.RemoveRange(removableRooms);
-        }
-        else if (request.RoomCount > currentRooms.Count)
-        {
-            var start = currentRooms.Count + 1;
-            var toAdd = request.RoomCount - currentRooms.Count;
-
-            for (var i = 0; i < toAdd; i++)
-            {
-                entity.Rooms.Add(new Room
-                {
-                    RoomNumber = $"Room {start + i}",
-                    MaxCapacity = request.RoomMaxCapacity,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
-            }
-        }
-
-        foreach (var room in entity.Rooms)
-        {
-            room.MaxCapacity = request.RoomMaxCapacity;
-            room.UpdatedAt = DateTime.UtcNow;
-        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -203,45 +161,6 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
     private static UnitDto ToDto(Unit entity, IReadOnlyDictionary<int, int> activeTenantCountsByUnit)
     {
-        var rooms = entity.Rooms
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.RoomNumber)
-            .ToList();
-
-        var assignedTenants = activeTenantCountsByUnit.TryGetValue(entity.Id, out var unitAssignedCount)
-            ? unitAssignedCount
-            : 0;
-
-        var remainingAssigned = assignedTenants;
-        var roomStatuses = rooms
-            .Select(room =>
-            {
-                var occupiedCount = Math.Min(room.MaxCapacity, Math.Max(remainingAssigned, 0));
-                remainingAssigned -= occupiedCount;
-
-                var availableSlots = Math.Max(room.MaxCapacity - occupiedCount, 0);
-
-                return new UnitRoomStatusDto
-                {
-                    RoomId = room.Id,
-                    RoomNumber = room.RoomNumber,
-                    MaxCapacity = room.MaxCapacity,
-                    OccupiedCount = occupiedCount,
-                    AvailableSlots = availableSlots,
-                    Status = availableSlots > 0 ? "Available" : "Occupied"
-                };
-            })
-            .ToList();
-
-        var totalCapacity = roomStatuses.Sum(x => x.MaxCapacity);
-        var occupancyDerivedStatus = totalCapacity > 0 && assignedTenants >= totalCapacity
-            ? UnitStatus.Occupied
-            : UnitStatus.Available;
-
-        var mappedStatus = entity.Status is UnitStatus.Maintenance or UnitStatus.Inactive
-            ? entity.Status
-            : occupancyDerivedStatus;
-
         return new UnitDto
         {
             Id = entity.Id,
@@ -249,11 +168,8 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             PropertyName = entity.Property?.Name ?? string.Empty,
             UnitNumber = entity.UnitNumber,
             MonthlyRent = entity.MonthlyRent,
-            RoomCount = roomStatuses.Count,
-            RoomMaxCapacity = totalCapacity,
-            Status = mappedStatus,
-            IsActive = entity.IsActive,
-            RoomStatuses = roomStatuses
+            Status = entity.Status,
+            IsActive = entity.IsActive
         };
     }
 }

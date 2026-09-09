@@ -12,6 +12,7 @@ public class PaymentDto
     public string UnitNumber { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public DateTime PaymentDate { get; set; }
+    public DateTime DueDate { get; set; }
     public PaymentType PaymentType { get; set; }
     public PaymentMethod PaymentMethod { get; set; }
     public string PaymentStatus { get; set; } = "Paid";

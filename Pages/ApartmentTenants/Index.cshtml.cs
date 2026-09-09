@@ -313,7 +313,7 @@ public class IndexModel(
                     PropertyName = unit.PropertyName,
                     MonthlyRent = monthlyRent,
                     DueDate = dueDate,
-                    TenantCountDisplay = $"{activeTenantCount}/{unit.RoomMaxCapacity}",
+                    TenantCountDisplay = $"{activeTenantCount} tenant(s)",
                     Status = unit.Status.ToString(),
                     LeaseId = selectedLease?.Id,
                     CanAddPayment = selectedLease is not null && unpaidAmount > 0,

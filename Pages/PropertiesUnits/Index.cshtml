@@ -85,7 +85,6 @@
                                                         <span class="ms-2">@unit.UnitNumber</span>
                                                     </td>
                                                     <td>@unit.MonthlyRent.ToString("N2")</td>
-                                                    <td>@unit.RoomMaxCapacity</td>
                                                     <td>@(unit.IsActive ? unit.Status.ToString() : "Inactive")</td>
                                                     <td class="text-end">
                                                         <div class="btn-group" role="group">
@@ -95,41 +94,9 @@
                                                 </tr>
 
                                                 <tr class="collapse unit-collapse" id="@unitRoomsCollapseId">
-                                                    <td colspan="5" class="bg-white">
+                                                    <td colspan="4" class="bg-white">
                                                         <div class="px-2 py-1">
-                                                            <strong class="app-section-title mb-2">@unit.UnitNumber Capacity Status</strong>
-                                                            <div class="card app-card card-body bg-light">
-                                                                <div class="table-responsive">
-                                                                    <table class="table app-grid table-sm table-bordered align-middle mb-0">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>Occupied</th>
-                                                                            <th>Capacity</th>
-                                                                            <th>Status</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        @if (unit.RoomStatuses.Count == 0)
-                                                                        {
-                                                                            <tr>
-                                                                                <td colspan="3" class="text-center text-muted">No capacity data for this unit.</td>
-                                                                            </tr>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            var occupiedTotal = unit.RoomStatuses.Sum(x => x.OccupiedCount);
-                                                                            var capacityTotal = unit.RoomStatuses.Sum(x => x.MaxCapacity);
-                                                                            var status = occupiedTotal >= capacityTotal ? "Occupied" : "Available";
-                                                                            <tr>
-                                                                                <td>@occupiedTotal</td>
-                                                                                <td>@capacityTotal</td>
-                                                                                <td>@status</td>
-                                                                            </tr>
-                                                                        }
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
+                                                            <p class="text-muted mb-0">No room capacity tracking for this unit.</p>
                                                         </div>
                                                     </td>
                                                 </tr>

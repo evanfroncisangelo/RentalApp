@@ -32,8 +32,6 @@ public class EditModel(IUnitService unitService, IPropertyService propertyServic
                 PropertyId = item.PropertyId,
                 UnitNumber = item.UnitNumber,
                 MonthlyRent = item.MonthlyRent,
-                RoomCount = item.RoomCount,
-                RoomMaxCapacity = item.RoomMaxCapacity == 0 ? 3 : item.RoomMaxCapacity,
                 Status = item.Status
             };
 
@@ -59,8 +57,6 @@ public class EditModel(IUnitService unitService, IPropertyService propertyServic
             PropertyId = Input.PropertyId,
             UnitNumber = Input.UnitNumber,
             MonthlyRent = Input.MonthlyRent,
-            RoomCount = Input.RoomCount,
-            RoomMaxCapacity = Input.RoomMaxCapacity,
             Status = Input.Status
         }, cancellationToken);
 
@@ -95,14 +91,6 @@ public class EditModel(IUnitService unitService, IPropertyService propertyServic
         [Range(0, 100000000)]
         [Display(Name = "Monthly Rent")]
         public decimal MonthlyRent { get; set; }
-
-        [Range(1, 500)]
-        [Display(Name = "Room Count")]
-        public int RoomCount { get; set; } = 1;
-
-        [Range(1, 3)]
-        [Display(Name = "Max Tenants Per Room")]
-        public int RoomMaxCapacity { get; set; } = 3;
 
         public UnitStatus Status { get; set; } = UnitStatus.Available;
     }

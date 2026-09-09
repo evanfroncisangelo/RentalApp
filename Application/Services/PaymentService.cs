@@ -80,6 +80,9 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
             }
         }
 
+        // Set DueDate from tenant's MoveInDate
+        var dueDate = request.DueDate ?? lease.Tenant?.MoveInDate ?? DateTime.UtcNow.Date;
+
         var payment = new Payment
         {
             LeaseId = lease.Id,
@@ -87,6 +90,7 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
             UnitId = lease.UnitId,
             Amount = request.Amount,
             PaymentDate = paymentDate,
+            DueDate = dueDate,
             PaymentType = request.PaymentType,
             PaymentMethod = request.PaymentMethod,
             ReferenceNumber = request.ReferenceNumber?.Trim(),
@@ -121,6 +125,10 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
 
         payment.Amount = request.Amount;
         payment.PaymentDate = request.PaymentDate == default ? payment.PaymentDate : request.PaymentDate.Date;
+        if (request.DueDate.HasValue)
+        {
+            payment.DueDate = request.DueDate.Value.Date;
+        }
         payment.PaymentMethod = request.PaymentMethod;
         payment.ReferenceNumber = request.ReferenceNumber?.Trim();
         payment.Notes = request.Notes?.Trim();
@@ -140,6 +148,7 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
         UnitNumber = entity.Unit?.UnitNumber ?? string.Empty,
         Amount = entity.Amount,
         PaymentDate = entity.PaymentDate,
+        DueDate = entity.DueDate,
         PaymentType = entity.PaymentType,
         PaymentMethod = entity.PaymentMethod,
         PaymentStatus = "Paid",

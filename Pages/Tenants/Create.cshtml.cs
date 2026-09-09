@@ -49,16 +49,12 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
         var canAssign = await IsUnitAvailableAsync(Input.UnitId.Value, cancellationToken);
         if (!canAssign)
         {
-            ModelState.AddModelError(string.Empty, "Selected unit is already at max capacity.");
+            ModelState.AddModelError(string.Empty, "Selected unit is not available.");
             return Page();
         }
 
         Input.UnitNumber = selectedUnit.UnitNumber;
-        Input.RoomNumber = selectedUnit.RoomStatuses
-            .Where(r => r.Status != UnitStatus.Inactive.ToString())
-            .OrderBy(r => r.RoomNumber)
-            .Select(r => r.RoomNumber)
-            .FirstOrDefault() ?? "Room 1";
+        Input.RoomNumber = string.Empty; // No longer tracking rooms
 
         await tenantService.CreateAsync(new CreateTenantRequestDto
         {
@@ -136,14 +132,12 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
             .Select(x => new
             {
                 Unit = x,
-                Capacity = x.RoomMaxCapacity,
                 Assigned = activeTenantCountByUnit.TryGetValue(x.Id, out var count) ? count : 0
             })
-            .Where(x => x.Capacity > 0 && x.Assigned < x.Capacity)
             .ToList();
 
         UnitOptions = activeUnits
-            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned}/{x.Capacity})", x.Unit.Id.ToString()))
+            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned} tenants)", x.Unit.Id.ToString()))
             .ToList();
 
         if (!Input.UnitId.HasValue && UnitOptions.Count > 0 && int.TryParse(UnitOptions[0].Value, out var firstUnitId))
@@ -158,7 +152,7 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
             return;
         }
 
-        SelectedUnitCapacity = $"{chosen.Assigned}/{chosen.Capacity}";
+        SelectedUnitCapacity = $"{chosen.Assigned} tenants";
     }
 
     private async Task<bool> IsUnitAvailableAsync(int unitId, CancellationToken cancellationToken)
@@ -166,15 +160,8 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
         var units = await unitService.GetAllAsync(null, cancellationToken);
         var selectedUnit = units.FirstOrDefault(x => x.IsActive && x.Id == unitId);
 
-        if (selectedUnit is null || selectedUnit.RoomMaxCapacity <= 0)
-        {
-            return false;
-        }
-
-        var allTenants = await tenantService.GetAllAsync(null, cancellationToken);
-        var assignedCount = allTenants.Count(t => t.IsActive && t.UnitId == unitId);
-
-        return assignedCount < selectedUnit.RoomMaxCapacity;
+        // Units are always available now (no capacity limiting)
+        return selectedUnit is not null;
     }
 
     private async Task<RentalApp.Application.DTOs.Units.UnitDto?> GetSelectedUnitAsync(int unitId, CancellationToken cancellationToken)
