@@ -7,7 +7,6 @@ public class Unit
     public int Id { get; set; }
     public int PropertyId { get; set; }
     public string UnitNumber { get; set; } = string.Empty;
-    public string? Description { get; set; }
     public decimal MonthlyRent { get; set; }
     public UnitStatus Status { get; set; } = UnitStatus.Available;
     public bool IsActive { get; set; } = true;

@@ -13,39 +13,6 @@
     </div>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(Model.LastReadingActionMessage))
-{
-    <div class="alert alert-success">@Model.LastReadingActionMessage</div>
-}
-
-<form method="post" asp-page-handler="CreateReading" class="card app-card p-3 mb-3">
-    <h5 class="app-section-title mb-2">Record Meter Reading & Generate Bill</h5>
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-    <div class="row">
-        <div class="col-md-3 mb-2">
-            <label asp-for="ReadingInput.UtilityCustomerId" class="form-label">Customer</label>
-            <select asp-for="ReadingInput.UtilityCustomerId" asp-items="Model.ReadingCustomerOptions" class="form-select"></select>
-            <span asp-validation-for="ReadingInput.UtilityCustomerId" class="text-danger"></span>
-        </div>
-        <div class="col-md-3 mb-2">
-            <label asp-for="ReadingInput.UtilityTypeId" class="form-label">Utility Type</label>
-            <select asp-for="ReadingInput.UtilityTypeId" asp-items="Model.UtilityTypeOptions" class="form-select"></select>
-            <span asp-validation-for="ReadingInput.UtilityTypeId" class="text-danger"></span>
-        </div>
-        <div class="col-md-3 mb-2">
-            <label asp-for="ReadingInput.ReadingDate" class="form-label"></label>
-            <input asp-for="ReadingInput.ReadingDate" class="form-control" type="date" />
-        </div>
-        <div class="col-md-3 mb-2">
-            <label asp-for="ReadingInput.ReadingValue" class="form-label"></label>
-            <input asp-for="ReadingInput.ReadingValue" class="form-control" type="number" min="0" step="0.0001" />
-            <span asp-validation-for="ReadingInput.ReadingValue" class="text-danger"></span>
-        </div>
-    </div>
-    <div class="mt-2">
-        <button type="submit" class="btn btn-primary">Save Reading & Generate Bill</button>
-    </div>
-</form>
 
 <div class="card app-card card-body mb-3">
     <h5 class="app-section-title mb-2">Utility Categories</h5>
@@ -94,6 +61,7 @@
                 <th>Tenant Name</th>
                 <th>Unit</th>
                 <th>Utility Category</th>
+                <th>Start Date</th>
                 <th>Amount to Pay</th>
                 <th>Due Day</th>
                 <th style="width: 110px;" class="text-end">Payments</th>
@@ -103,7 +71,7 @@
             @if (Model.Customers.Count == 0)
             {
                 <tr>
-                    <td colspan="8" class="text-center text-muted">No utility customers yet.</td>
+                    <td colspan="9" class="text-center text-muted">No utility customers yet.</td>
                 </tr>
             }
             else
@@ -116,6 +84,7 @@
                         <td>@(string.IsNullOrWhiteSpace(customer.TenantName) ? "None" : customer.TenantName)</td>
                         <td>@(string.IsNullOrWhiteSpace(customer.RoomLabel) ? "None" : customer.RoomLabel)</td>
                         <td>@(string.IsNullOrWhiteSpace(customer.CategoryName) ? "None" : customer.CategoryName)</td>
+                        <td>@(customer.UtilityStartDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
                         <td>@(customer.AmountToPay?.ToString("N2") ?? "-")</td>
                         <td>@(customer.DueDayOfMonth?.ToString() ?? "-")</td>
                         <td class="text-end">
@@ -127,7 +96,7 @@
                     </tr>
 
                     <tr class="collapse @(Model.ExpandedCustomerId == customer.Id ? "show" : null)" id="payments-@customer.Id" data-customer-id="@customer.Id">
-                        <td colspan="8" class="bg-light">
+                        <td colspan="9" class="bg-light">
                             <div class="p-2">
                                 <strong class="d-block mb-2">Payment Transaction History</strong>
 
@@ -161,7 +130,7 @@
                                                     @foreach (var payment in history)
                                                     {
                                                         <tr>
-                                                            <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
+                                                            <td>@payment.PaymentDate.ToString("MMM-dd-yyyy")</td>
                                                             <td>@payment.UtilityTypeName</td>
                                                             <td>@payment.BillingPeriod</td>
                                                             <td>@payment.Amount.ToString("N2")</td>
@@ -355,12 +324,17 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-2">
+                        <div class="col-md-4 mb-2">
+                            <label asp-for="Input.UtilityStartDate" class="form-label">Utility Start Date</label>
+                            <input asp-for="Input.UtilityStartDate" class="form-control" type="date" id="customerStartDateInput" />
+                            <span asp-validation-for="Input.UtilityStartDate" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4 mb-2">
                             <label asp-for="Input.AmountToPay" class="form-label">Amount to Pay</label>
                             <input asp-for="Input.AmountToPay" class="form-control" type="number" min="0.01" step="0.01" id="customerAmountInput" />
                             <span asp-validation-for="Input.AmountToPay" class="text-danger"></span>
                         </div>
-                        <div class="col-md-6 mb-2">
+                        <div class="col-md-4 mb-2">
                             <label asp-for="Input.DueDayOfMonth" class="form-label">Due Date (Day of Month)</label>
                             <input asp-for="Input.DueDayOfMonth" class="form-control" type="number" min="1" max="28" id="customerDueDayInput" />
                             <span asp-validation-for="Input.DueDayOfMonth" class="text-danger"></span>
@@ -459,6 +433,7 @@
             customerTenantInput.value = '';
             customerRoomInput.value = '';
             customerCategoryInput.value = '';
+            document.getElementById('customerStartDateInput').value = '';
             document.getElementById('customerAmountInput').value = '';
             document.getElementById('customerDueDayInput').value = '';
             customerTenantInput.disabled = false;
@@ -506,6 +481,7 @@
                 customerTenantInput.value = customer.TenantId ?? customer.tenantId ?? '';
                 customerRoomInput.value = customer.RoomId ?? customer.roomId ?? '';
                 customerCategoryInput.value = customer.UtilityCategoryId ?? customer.utilityCategoryId ?? '';
+                document.getElementById('customerStartDateInput').value = (customer.UtilityStartDate ?? customer.utilityStartDate ?? '').toString().substring(0, 10);
                 document.getElementById('customerAmountInput').value = customer.AmountToPay ?? customer.amountToPay ?? customer.DefaultRate ?? customer.defaultRate ?? '';
                 document.getElementById('customerDueDayInput').value = customer.DueDayOfMonth ?? customer.dueDayOfMonth ?? '';
                 customerTenantInput.disabled = false;

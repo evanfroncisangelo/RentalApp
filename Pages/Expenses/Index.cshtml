@@ -86,7 +86,6 @@
                 <th>Property</th>
                 <th>Unit</th>
                 <th>Category</th>
-                <th>Description</th>
                 <th>Amount</th>
                 <th class="text-end">Actions</th>
             </tr>
@@ -95,11 +94,10 @@
             @foreach (var item in Model.PagedItems.Items)
             {
                 <tr>
-                    <td>@item.ExpenseDate.ToString("yyyy-MM-dd")</td>
+                    <td>@item.ExpenseDate.ToString("MMM-dd-yyyy")</td>
                     <td>@item.PropertyName</td>
                     <td>@(item.UnitNumber ?? "-")</td>
                     <td>@item.CategoryName</td>
-                    <td>@item.Description</td>
                     <td>@item.Amount.ToString("N2")</td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-outline-secondary open-expense-edit-btn"
@@ -193,11 +191,7 @@
                             <span asp-validation-for="ExpenseInput.ExpenseDate" class="text-danger"></span>
                         </div>
                     </div>
-                    <div class="mb-2">
-                        <label asp-for="ExpenseInput.Description" class="form-label"></label>
-                        <input asp-for="ExpenseInput.Description" class="form-control" id="expenseDescriptionInput" />
-                        <span asp-validation-for="ExpenseInput.Description" class="text-danger"></span>
-                    </div>
+
                     <div class="mb-2">
                         <label asp-for="ExpenseInput.Amount" class="form-label"></label>
                         <input asp-for="ExpenseInput.Amount" class="form-control" type="number" step="0.01" min="0.01" id="expenseAmountInput" />
@@ -278,7 +272,6 @@
             document.getElementById('expensePropertyInput').value = '';
             document.getElementById('expenseUnitInput').value = '';
             document.getElementById('expenseCategoryInput').value = '';
-            document.getElementById('expenseDescriptionInput').value = '';
             document.getElementById('expenseAmountInput').value = '';
             document.getElementById('expenseDateInput').value = new Date().toISOString().split('T')[0];
             document.getElementById('expenseNotesInput').value = '';
@@ -294,7 +287,6 @@
                 document.getElementById('expensePropertyInput').value = expense.propertyId ?? '';
                 document.getElementById('expenseUnitInput').value = expense.unitId ?? '';
                 document.getElementById('expenseCategoryInput').value = expense.categoryId ?? '';
-                document.getElementById('expenseDescriptionInput').value = expense.description ?? '';
                 document.getElementById('expenseAmountInput').value = expense.amount ?? '';
                 document.getElementById('expenseDateInput').value = (expense.expenseDate ?? '').toString().substring(0, 10);
                 document.getElementById('expenseNotesInput').value = expense.notes ?? '';

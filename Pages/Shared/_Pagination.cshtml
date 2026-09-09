@@ -12,16 +12,16 @@
         [Model.PageParameterName] = (Model.PageNumber + 1).ToString()
     };
 
-    <nav aria-label="Data pagination" class="mt-3">
+    <nav aria-label="Data pagination" class="mt-3 js-ajax-pagination-container">
         <ul class="pagination pagination-sm justify-content-end mb-0">
             <li class="page-item @(Model.HasPrevious ? "" : "disabled")">
-                <a class="page-link" asp-page="@Model.PageUrl" asp-all-route-data="prevRoute">Previous</a>
+                <a class="page-link js-ajax-pagination" asp-page="@Model.PageUrl" asp-all-route-data="prevRoute">Previous</a>
             </li>
             <li class="page-item disabled">
                 <span class="page-link">Page @Model.PageNumber of @Model.TotalPages</span>
             </li>
             <li class="page-item @(Model.HasNext ? "" : "disabled")">
-                <a class="page-link" asp-page="@Model.PageUrl" asp-all-route-data="nextRoute">Next</a>
+                <a class="page-link js-ajax-pagination" asp-page="@Model.PageUrl" asp-all-route-data="nextRoute">Next</a>
             </li>
         </ul>
     </nav>

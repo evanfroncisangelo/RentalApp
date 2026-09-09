@@ -41,7 +41,6 @@ public class CreateModel(
             PropertyId = Input.PropertyId,
             UnitId = Input.UnitId,
             CategoryId = Input.CategoryId,
-            Description = Input.Description,
             Amount = Input.Amount,
             ExpenseDate = Input.ExpenseDate,
             Notes = Input.Notes
@@ -83,9 +82,6 @@ public class CreateModel(
         [Required]
         [Display(Name = "Category")]
         public int CategoryId { get; set; }
-
-        [Required, MaxLength(500)]
-        public string Description { get; set; } = string.Empty;
 
         [Range(0.01, 100000000)]
         public decimal Amount { get; set; }

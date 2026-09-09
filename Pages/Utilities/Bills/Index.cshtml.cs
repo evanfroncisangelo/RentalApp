@@ -30,6 +30,9 @@ public class IndexModel(
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
 
+    [BindProperty(SupportsGet = true)]
+    public int? ExpandedBillId { get; set; }
+
     [BindProperty]
     public AddPaymentInputModel AddPaymentInput { get; set; } = new();
 
@@ -40,6 +43,7 @@ public class IndexModel(
     public VoidPaymentInputModel VoidPaymentInput { get; set; } = new();
 
     public PagedResult<UtilityBillDto> PagedItems { get; private set; } = new();
+    public IReadOnlyDictionary<int, IReadOnlyList<UtilityBillPaymentDto>> PaidPaymentsByBillId { get; private set; } = new Dictionary<int, IReadOnlyList<UtilityBillPaymentDto>>();
     public List<SelectListItem> CustomerOptions { get; private set; } = [];
     public List<SelectListItem> UtilityTypeOptions { get; private set; } = [];
     public bool ShowPaymentModal { get; private set; }
@@ -58,6 +62,7 @@ public class IndexModel(
         if (!TryValidateModel(AddPaymentInput, nameof(AddPaymentInput)))
         {
             ShowPaymentModal = true;
+            ExpandedBillId = AddPaymentInput.UtilityBillId > 0 ? AddPaymentInput.UtilityBillId : ExpandedBillId;
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -82,7 +87,7 @@ public class IndexModel(
             return Page();
         }
 
-        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber });
+        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber, ExpandedBillId = AddPaymentInput.UtilityBillId });
     }
 
     public async Task<IActionResult> OnPostApplyCreditAsync(CancellationToken cancellationToken)
@@ -92,6 +97,7 @@ public class IndexModel(
         if (!TryValidateModel(ApplyCreditInput, nameof(ApplyCreditInput)))
         {
             ShowApplyCreditModal = true;
+            ExpandedBillId = ApplyCreditInput.UtilityBillId > 0 ? ApplyCreditInput.UtilityBillId : ExpandedBillId;
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -112,7 +118,7 @@ public class IndexModel(
             return Page();
         }
 
-        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber });
+        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber, ExpandedBillId = ApplyCreditInput.UtilityBillId });
     }
 
     public async Task<IActionResult> OnPostVoidPaymentAsync(CancellationToken cancellationToken)
@@ -138,13 +144,24 @@ public class IndexModel(
             return Page();
         }
 
-        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber });
+        return RedirectToPage(new { UtilityCustomerId, UtilityTypeId, BillingPeriod, PageNumber, ExpandedBillId });
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         var bills = await utilityBillService.GetAllAsync(UtilityCustomerId, UtilityTypeId, BillingPeriod, cancellationToken);
         PagedItems = PagedResult<UtilityBillDto>.Create(bills, PageNumber, 10);
+
+        var paidPayments = await utilityPaymentService.GetAllAsync(null, cancellationToken);
+        PaidPaymentsByBillId = paidPayments
+            .Where(x => !x.IsVoided)
+            .GroupBy(x => x.UtilityBillId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<UtilityBillPaymentDto>)g
+                    .OrderByDescending(x => x.PaymentDate)
+                    .ThenByDescending(x => x.Id)
+                    .ToList());
 
         var customers = await utilityCustomerService.GetAllAsync(null, cancellationToken);
         CustomerOptions = [new SelectListItem("All", "")];

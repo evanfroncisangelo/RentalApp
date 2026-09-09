@@ -172,7 +172,6 @@ public class IndexModel(
                     PropertyId = ExpenseInput.PropertyId,
                     UnitId = ExpenseInput.UnitId,
                     CategoryId = ExpenseInput.CategoryId,
-                    Description = ExpenseInput.Description,
                     Amount = ExpenseInput.Amount,
                     ExpenseDate = ExpenseInput.ExpenseDate,
                     Notes = ExpenseInput.Notes
@@ -185,7 +184,6 @@ public class IndexModel(
                     PropertyId = ExpenseInput.PropertyId,
                     UnitId = ExpenseInput.UnitId,
                     CategoryId = ExpenseInput.CategoryId,
-                    Description = ExpenseInput.Description,
                     Amount = ExpenseInput.Amount,
                     ExpenseDate = ExpenseInput.ExpenseDate,
                     Notes = ExpenseInput.Notes
@@ -235,9 +233,6 @@ public class IndexModel(
         [Required]
         [Display(Name = "Category")]
         public int CategoryId { get; set; }
-
-        [Required, MaxLength(500)]
-        public string Description { get; set; } = string.Empty;
 
         [Range(0.01, 100000000)]
         public decimal Amount { get; set; }

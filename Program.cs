@@ -3,6 +3,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,7 @@ using RentalApp.Application.Services;
 using RentalApp.Application.Validators.Auth;
 using RentalApp.Data;
 using RentalApp.Domain.Entities;
+using RentalApp.Infrastructure.Configuration;
 using RentalApp.Infrastructure.Pdf;
 using RentalApp.Infrastructure.Security;
 using RentalApp.Middleware;
@@ -18,10 +20,18 @@ using RentalApp.Middleware;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<ApplicationDataOptions>(builder.Configuration.GetSection(ApplicationDataOptions.SectionName));
+builder.Services.AddHostedService<ProductionConfigurationValidator>();
+builder.Services.AddHostedService<ApplicationDataDirectoryInitializer>();
 
 builder.Services.AddDbContext<RentalDbContext>(options =>
 {
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
 builder.Services
@@ -34,6 +44,10 @@ builder.Services
     {
         options.LoginPath = "/Auth/Login";
         options.AccessDeniedPath = "/Auth/Login";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.SlidingExpiration = true;
     })
     .AddJwtBearer(options =>
     {
@@ -52,6 +66,7 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
@@ -68,13 +83,8 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<IUtilityCustomerService, UtilityCustomerService>();
 builder.Services.AddScoped<IUtilityCategoryService, UtilityCategoryService>();
-builder.Services.AddScoped<IUtilityRateService, UtilityRateService>();
 builder.Services.AddScoped<IUtilityBillService, UtilityBillService>();
-builder.Services.AddScoped<IUtilityReadingService, UtilityReadingService>();
 builder.Services.AddScoped<IUtilityPaymentService, UtilityPaymentService>();
-builder.Services.AddScoped<IUtilityRecalculationService, UtilityRecalculationService>();
-builder.Services.AddScoped<IUtilityProrationService, UtilityProrationService>();
-builder.Services.AddScoped<IUtilityPeriodLockService, UtilityPeriodLockService>();
 builder.Services.AddScoped<IFinancialReportService, FinancialReportService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
@@ -90,19 +100,33 @@ var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
 {
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapStaticAssets();
 app.MapControllers();
 app.MapRazorPages().WithStaticAssets();

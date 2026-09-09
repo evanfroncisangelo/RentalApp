@@ -11,6 +11,7 @@ public class UtilityCustomerDto
     public string Name { get; set; } = string.Empty;
     public UtilityCustomerType CustomerType { get; set; }
     public UtilityDueDateRuleType DueDateRuleType { get; set; }
+    public DateTime? UtilityStartDate { get; set; }
     public int? DueDayOfMonth { get; set; }
     public int? DueInDays { get; set; }
     public decimal? DefaultRate { get; set; }

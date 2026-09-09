@@ -25,8 +25,7 @@ public class CreateModel(IPropertyService propertyService) : PageModel
         await propertyService.CreateAsync(new CreatePropertyRequestDto
         {
             Name = Input.Name,
-            Address = Input.Address,
-            Description = Input.Description
+            Address = Input.Address
         }, cancellationToken);
 
         return RedirectToPage("/Properties/Index");
@@ -39,8 +38,5 @@ public class CreateModel(IPropertyService propertyService) : PageModel
 
         [Required, MaxLength(500)]
         public string Address { get; set; } = string.Empty;
-
-        [MaxLength(1000)]
-        public string? Description { get; set; }
     }
 }

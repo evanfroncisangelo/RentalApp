@@ -49,6 +49,8 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
             throw new AppValidationException("Payment amount must be greater than zero.");
         }
 
+        var paymentDate = request.PaymentDate == default ? DateTime.UtcNow.Date : request.PaymentDate.Date;
+
         var lease = await dbContext.Leases
             .AsNoTracking()
             .Include(x => x.Unit)
@@ -61,13 +63,31 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
             throw new AppValidationException("Payments can only be recorded for active or ended leases.");
         }
 
+        if (request.PaymentType == PaymentType.Deposit)
+        {
+            var hasExistingDepositForMonth = await dbContext.Payments
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.UnitId == lease.UnitId &&
+                    x.PaymentType == PaymentType.Deposit &&
+                    x.PaymentDate.Year == paymentDate.Year &&
+                    x.PaymentDate.Month == paymentDate.Month,
+                    cancellationToken);
+
+            if (hasExistingDepositForMonth)
+            {
+                throw new AppValidationException("A deposit payment already exists for this unit in the selected month.");
+            }
+        }
+
         var payment = new Payment
         {
             LeaseId = lease.Id,
             TenantId = lease.TenantId,
             UnitId = lease.UnitId,
             Amount = request.Amount,
-            PaymentDate = request.PaymentDate == default ? DateTime.UtcNow.Date : request.PaymentDate.Date,
+            PaymentDate = paymentDate,
+            PaymentType = request.PaymentType,
             PaymentMethod = request.PaymentMethod,
             ReferenceNumber = request.ReferenceNumber?.Trim(),
             Notes = request.Notes?.Trim(),
@@ -86,6 +106,30 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
         return ToDto(created);
     }
 
+    public async Task<PaymentDto> UpdateAsync(int id, UpdatePaymentRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (request.Amount <= 0)
+        {
+            throw new AppValidationException("Payment amount must be greater than zero.");
+        }
+
+        var payment = await dbContext.Payments
+            .Include(x => x.Unit)
+            .Include(x => x.Tenant)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new AppNotFoundException("Payment not found.");
+
+        payment.Amount = request.Amount;
+        payment.PaymentDate = request.PaymentDate == default ? payment.PaymentDate : request.PaymentDate.Date;
+        payment.PaymentMethod = request.PaymentMethod;
+        payment.ReferenceNumber = request.ReferenceNumber?.Trim();
+        payment.Notes = request.Notes?.Trim();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return ToDto(payment);
+    }
+
     private static PaymentDto ToDto(Payment entity) => new()
     {
         Id = entity.Id,
@@ -96,6 +140,7 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
         UnitNumber = entity.Unit?.UnitNumber ?? string.Empty,
         Amount = entity.Amount,
         PaymentDate = entity.PaymentDate,
+        PaymentType = entity.PaymentType,
         PaymentMethod = entity.PaymentMethod,
         PaymentStatus = "Paid",
         ReferenceNumber = entity.ReferenceNumber,

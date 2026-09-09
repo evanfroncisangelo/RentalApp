@@ -36,7 +36,6 @@ public class EditModel(
                 PropertyId = expense.PropertyId,
                 UnitId = expense.UnitId,
                 CategoryId = expense.CategoryId,
-                Description = expense.Description,
                 Amount = expense.Amount,
                 ExpenseDate = expense.ExpenseDate,
                 Notes = expense.Notes
@@ -63,7 +62,6 @@ public class EditModel(
             PropertyId = Input.PropertyId,
             UnitId = Input.UnitId,
             CategoryId = Input.CategoryId,
-            Description = Input.Description,
             Amount = Input.Amount,
             ExpenseDate = Input.ExpenseDate,
             Notes = Input.Notes
@@ -107,9 +105,6 @@ public class EditModel(
         [Required]
         [Display(Name = "Category")]
         public int CategoryId { get; set; }
-
-        [Required, MaxLength(500)]
-        public string Description { get; set; } = string.Empty;
 
         [Range(0.01, 100000000)]
         public decimal Amount { get; set; }

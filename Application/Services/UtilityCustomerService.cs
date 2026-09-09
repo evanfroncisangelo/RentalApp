@@ -57,6 +57,7 @@ public class UtilityCustomerService(RentalDbContext dbContext) : IUtilityCustome
             Name = name,
             CustomerType = request.CustomerType,
             DueDateRuleType = UtilityDueDateRuleType.FixedDayOfMonth,
+            UtilityStartDate = request.UtilityStartDate?.Date,
             DueInDays = null,
             DueDayOfMonth = request.DueDayOfMonth,
             DefaultRate = request.AmountToPay,
@@ -91,6 +92,7 @@ public class UtilityCustomerService(RentalDbContext dbContext) : IUtilityCustome
         entity.Name = name;
         entity.CustomerType = request.CustomerType;
         entity.DueDateRuleType = UtilityDueDateRuleType.FixedDayOfMonth;
+        entity.UtilityStartDate = request.UtilityStartDate?.Date;
         entity.DueDayOfMonth = request.DueDayOfMonth;
         entity.DueInDays = null;
         entity.DefaultRate = request.AmountToPay;
@@ -121,7 +123,7 @@ public class UtilityCustomerService(RentalDbContext dbContext) : IUtilityCustome
             throw new AppValidationException("Amount to pay must be greater than zero.");
         }
 
-        if (!dueDayOfMonth.HasValue || dueDayOfMonth.Value < 1 || dueDayOfMonth.Value > 28)
+        if (dueDayOfMonth.HasValue && (dueDayOfMonth.Value < 1 || dueDayOfMonth.Value > 28))
         {
             throw new AppValidationException("Due date day must be between 1 and 28.");
         }
@@ -136,6 +138,7 @@ public class UtilityCustomerService(RentalDbContext dbContext) : IUtilityCustome
         Name = entity.Name,
         CustomerType = entity.CustomerType,
         DueDateRuleType = entity.DueDateRuleType,
+        UtilityStartDate = entity.UtilityStartDate,
         DueDayOfMonth = entity.DueDayOfMonth,
         DueInDays = entity.DueInDays,
         DefaultRate = entity.DefaultRate,

@@ -30,4 +30,11 @@ public class PaymentsController(IPaymentService paymentService) : ControllerBase
         var created = await paymentService.CreateAsync(request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<PaymentDto>> Update(int id, [FromBody] UpdatePaymentRequestDto request, CancellationToken cancellationToken)
+    {
+        var updated = await paymentService.UpdateAsync(id, request, cancellationToken);
+        return Ok(updated);
+    }
 }

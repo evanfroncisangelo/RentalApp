@@ -40,7 +40,7 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
 
         var collectedRent = await dbContext.Payments
             .AsNoTracking()
-            .Where(x => x.PaymentDate >= from && x.PaymentDate < to)
+            .Where(x => x.PaymentDate >= from && x.PaymentDate < to && x.PaymentType == PaymentType.Rent)
             .SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
 
         var totalExpenses = await dbContext.Expenses
@@ -66,10 +66,7 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
             .Select(x => x.Amount - x.Payments.Where(p => !p.IsVoided).Sum(p => p.Amount))
             .SumAsync(cancellationToken);
 
-        var totalUtilityConsumption = await dbContext.UtilityBills
-            .AsNoTracking()
-            .Where(x => x.BillingPeriod.StartsWith($"{year:D4}-"))
-            .SumAsync(x => (decimal?)x.Consumption, cancellationToken) ?? 0m;
+        var totalUtilityConsumption = 0m;
 
         var apartmentTenantGrid = await BuildApartmentTenantGridAsync(year, cancellationToken);
         var expenseGrid = await BuildExpenseGridAsync(year, cancellationToken);
@@ -109,31 +106,21 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
 
         var payments = await dbContext.Payments
             .AsNoTracking()
-            .Include(x => x.Lease)
-            .ThenInclude(x => x!.Unit)
-            .Include(x => x.Lease)
-            .ThenInclude(x => x!.Room)
-            .Where(x => x.PaymentDate >= from && x.PaymentDate < to)
-            .ToListAsync(cancellationToken);
-
-        var leasesForDeposits = await dbContext.Leases
-            .AsNoTracking()
             .Include(x => x.Unit)
-            .Include(x => x.Room)
-            .Where(x => x.StartDate >= from && x.StartDate < to)
+            .Where(x => x.PaymentDate >= from && x.PaymentDate < to)
             .ToListAsync(cancellationToken);
 
         var rows = new Dictionary<string, ApartmentTenantDashboardRowDto>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var payment in payments)
         {
-            var lease = payment.Lease;
-            if (lease?.Unit is null || lease.Room is null)
+            var unit = payment.Unit;
+            if (unit is null)
             {
                 continue;
             }
 
-            var label = $"{lease.Unit.UnitNumber}/{lease.Room.RoomNumber}";
+            var label = unit.UnitNumber;
             if (!rows.TryGetValue(label, out var row))
             {
                 row = new ApartmentTenantDashboardRowDto { RoomUnitLabel = label };
@@ -141,27 +128,16 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
             }
 
             var month = payment.PaymentDate.Month;
-            row.RentByMonth[month] = row.RentByMonth.GetValueOrDefault(month) + payment.Amount;
-            row.TotalRent += payment.Amount;
-        }
-
-        foreach (var lease in leasesForDeposits)
-        {
-            if (lease.Unit is null || lease.Room is null)
+            if (payment.PaymentType == PaymentType.Deposit)
             {
-                continue;
+                row.DepositByMonth[month] = row.DepositByMonth.GetValueOrDefault(month) + payment.Amount;
+                row.TotalDeposit += payment.Amount;
             }
-
-            var label = $"{lease.Unit.UnitNumber}/{lease.Room.RoomNumber}";
-            if (!rows.TryGetValue(label, out var row))
+            else
             {
-                row = new ApartmentTenantDashboardRowDto { RoomUnitLabel = label };
-                rows[label] = row;
+                row.RentByMonth[month] = row.RentByMonth.GetValueOrDefault(month) + payment.Amount;
+                row.TotalRent += payment.Amount;
             }
-
-            var month = lease.StartDate.Month;
-            row.DepositByMonth[month] = row.DepositByMonth.GetValueOrDefault(month) + lease.SecurityDeposit;
-            row.TotalDeposit += lease.SecurityDeposit;
         }
 
         return rows.Values
@@ -187,7 +163,7 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
                 ExpenseCategory = x.Category != null ? x.Category.Name : "-",
                 PropertyUnit = x.Unit != null
                     ? $"{x.Property!.Name} | {x.Unit.UnitNumber}"
-                    : $"{x.Property!.Name} | -",
+                    : x.Property!.Name,
                 Amount = x.Amount,
                 Date = x.ExpenseDate
             })
@@ -196,18 +172,26 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
 
     private async Task<IReadOnlyList<UtilityCustomerDashboardRowDto>> BuildUtilityCustomerGridAsync(int year, CancellationToken cancellationToken)
     {
-        var yearPrefix = $"{year:D4}-";
+        var from = new DateTime(year, 1, 1);
+        var to = from.AddYears(1);
 
-        var bills = await dbContext.UtilityBills
+        var payments = await dbContext.UtilityBillPayments
             .AsNoTracking()
-            .Include(x => x.UtilityCustomer)
-            .Where(x => x.BillingPeriod.StartsWith(yearPrefix))
+            .Include(x => x.UtilityBill)
+            .ThenInclude(x => x!.UtilityCustomer)
+            .Where(x => !x.IsVoided && x.PaymentDate >= from && x.PaymentDate < to)
             .ToListAsync(cancellationToken);
 
         var rows = new Dictionary<string, UtilityCustomerDashboardRowDto>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var bill in bills)
+        foreach (var payment in payments)
         {
+            var bill = payment.UtilityBill;
+            if (bill is null)
+            {
+                continue;
+            }
+
             var customerName = bill.UtilityCustomer?.Name ?? $"Customer #{bill.UtilityCustomerId}";
             if (!rows.TryGetValue(customerName, out var row))
             {
@@ -218,13 +202,9 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
                 rows[customerName] = row;
             }
 
-            if (!int.TryParse(bill.BillingPeriod.Split('-')[1], out var month))
-            {
-                continue;
-            }
-
-            row.AmountByMonth[month] = row.AmountByMonth.GetValueOrDefault(month) + bill.Amount;
-            row.TotalAmount += bill.Amount;
+            var month = payment.PaymentDate.Month;
+            row.AmountByMonth[month] = row.AmountByMonth.GetValueOrDefault(month) + payment.Amount;
+            row.TotalAmount += payment.Amount;
         }
 
         return rows.Values

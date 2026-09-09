@@ -62,7 +62,6 @@ public class ExpenseService(RentalDbContext dbContext) : IExpenseService
             PropertyId = request.PropertyId,
             UnitId = request.UnitId,
             CategoryId = request.CategoryId,
-            Description = request.Description.Trim(),
             Amount = request.Amount,
             ExpenseDate = request.ExpenseDate.Date,
             Notes = request.Notes?.Trim(),
@@ -91,7 +90,6 @@ public class ExpenseService(RentalDbContext dbContext) : IExpenseService
         entity.PropertyId = request.PropertyId;
         entity.UnitId = request.UnitId;
         entity.CategoryId = request.CategoryId;
-        entity.Description = request.Description.Trim();
         entity.Amount = request.Amount;
         entity.ExpenseDate = request.ExpenseDate.Date;
         entity.Notes = request.Notes?.Trim();
@@ -138,7 +136,6 @@ public class ExpenseService(RentalDbContext dbContext) : IExpenseService
         UnitNumber = entity.Unit?.UnitNumber,
         CategoryId = entity.CategoryId,
         CategoryName = entity.Category?.Name ?? string.Empty,
-        Description = entity.Description,
         Amount = entity.Amount,
         ExpenseDate = entity.ExpenseDate,
         Notes = entity.Notes

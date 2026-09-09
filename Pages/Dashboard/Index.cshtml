@@ -79,56 +79,6 @@
 
 <div class="card app-card mb-4">
     <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Expenses - @Model.Year</h5>
-        <small class="text-muted">Expense breakdown under Apartment Tenants Matrix</small>
-    </div>
-    <div class="table-responsive">
-        <table class="table app-grid table-bordered table-sm table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Expense Category</th>
-                    <th>Property | Unit</th>
-                    <th class="text-end">Amount</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model.Summary.ExpenseGrid.Count == 0)
-                {
-                    <tr>
-                        <td colspan="4" class="text-center text-muted">No expenses found for this year.</td>
-                    </tr>
-                }
-                else
-                {
-                    @foreach (var expense in Model.Summary.ExpenseGrid)
-                    {
-                        <tr>
-                            <td>@expense.ExpenseCategory</td>
-                            <td>@expense.PropertyUnit</td>
-                            <td class="text-end">@expense.Amount.ToString("N2")</td>
-                            <td>@expense.Date.ToString("yyyy-MM-dd")</td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card-footer bg-white border-0 pt-3">
-        <div class="row g-3">
-            <div class="col-md-3">
-                <div class="app-kpi">
-                    <small class="label d-block">Total Expense</small>
-                    <strong class="value">@Model.Summary.TotalExpenses.ToString("N2")</strong>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card app-card">
-    <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Utility Matrix - @Model.Year</h5>
         <small class="text-muted">Customer Utility Totals by Month</small>
     </div>
@@ -172,3 +122,65 @@
         </div>
     </div>
 </div>
+
+<div class="card app-card">
+    <div class="card-header app-card-soft d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Expenses - @Model.Year</h5>
+        <small class="text-muted">Expense breakdown under Dashboard</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table app-grid table-bordered table-sm table-hover align-middle mb-0 dashboard-expense-grid">
+            <thead>
+                <tr>
+                    <th>Expense Category</th>
+                    <th>Property | Unit</th>
+                    <th class="text-end">Amount</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Summary.ExpenseGrid.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No expenses found for this year.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var expense in Model.Summary.ExpenseGrid)
+                    {
+                        <tr>
+                            <td>@expense.ExpenseCategory</td>
+                            <td>@expense.PropertyUnit</td>
+                            <td class="text-end">@expense.Amount.ToString("N2")</td>
+                            <td>@expense.Date.ToString("MMM-dd-yyyy")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer bg-white border-0 pt-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="app-kpi">
+                    <small class="label d-block">Total Expense</small>
+                    <strong class="value">@Model.Summary.TotalExpenses.ToString("N2")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-expense-grid {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .dashboard-expense-grid th,
+    .dashboard-expense-grid td {
+        width: 25%;
+    }
+</style>

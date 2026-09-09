@@ -49,6 +49,9 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
             ContactNumber = request.ContactNumber?.Trim(),
             Email = request.Email?.Trim(),
             Address = request.Address?.Trim(),
+            UnitId = request.UnitId,
+            UnitNumber = request.UnitNumber?.Trim(),
+            RoomNumber = request.RoomNumber?.Trim(),
             DateOfBirth = request.DateOfBirth,
             Notes = request.Notes?.Trim(),
             IsActive = true,
@@ -72,6 +75,9 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
         entity.ContactNumber = request.ContactNumber?.Trim();
         entity.Email = request.Email?.Trim();
         entity.Address = request.Address?.Trim();
+        entity.UnitId = request.UnitId;
+        entity.UnitNumber = request.UnitNumber?.Trim();
+        entity.RoomNumber = request.RoomNumber?.Trim();
         entity.DateOfBirth = request.DateOfBirth;
         entity.Notes = request.Notes?.Trim();
         entity.UpdatedAt = DateTime.UtcNow;
@@ -92,6 +98,18 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task ReactivateAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Tenants
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new AppNotFoundException("Tenant not found.");
+
+        entity.IsActive = true;
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private static TenantDto ToDto(Tenant entity) => new()
     {
         Id = entity.Id,
@@ -100,6 +118,9 @@ public class TenantService(RentalDbContext dbContext) : ITenantService
         ContactNumber = entity.ContactNumber,
         Email = entity.Email,
         Address = entity.Address,
+        UnitId = entity.UnitId,
+        UnitNumber = entity.UnitNumber,
+        RoomNumber = entity.RoomNumber,
         DateOfBirth = entity.DateOfBirth,
         Notes = entity.Notes,
         IsActive = entity.IsActive

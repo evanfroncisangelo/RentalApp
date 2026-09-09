@@ -7,4 +7,5 @@ public interface IPaymentService
     Task<IReadOnlyList<PaymentDto>> GetAllAsync(int? leaseId, CancellationToken cancellationToken = default);
     Task<PaymentDto> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<PaymentDto> CreateAsync(CreatePaymentRequestDto request, CancellationToken cancellationToken = default);
+    Task<PaymentDto> UpdateAsync(int id, UpdatePaymentRequestDto request, CancellationToken cancellationToken = default);
 }

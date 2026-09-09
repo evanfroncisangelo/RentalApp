@@ -29,4 +29,10 @@ public class IndexModel(ITenantService tenantService) : PageModel
         await tenantService.DeactivateAsync(id, cancellationToken);
         return RedirectToPage(new { Search, PageNumber });
     }
+
+    public async Task<IActionResult> OnPostReactivateAsync(int id, CancellationToken cancellationToken)
+    {
+        await tenantService.ReactivateAsync(id, cancellationToken);
+        return RedirectToPage(new { Search, PageNumber });
+    }
 }

@@ -2,7 +2,7 @@
 @model RentalApp.Pages.ApartmentTenants.IndexModel
 @using System.Text.Json
 @{
-    ViewData["Title"] = "Apartment Tenants";
+    ViewData["Title"] = "Payments";
 }
 
 <div class="page-header-block">
@@ -10,10 +10,16 @@
     <button type="button" class="btn btn-primary" onclick="openAddPropertyModal()">+ Add Property</button>
 </div>
 
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
 <form method="get" class="filter-bar row g-2 align-items-end">
-    <input type="hidden" name="Search" value="@Model.Search" />
     <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
-    <input type="hidden" name="ExpandedTenantId" value="@Model.ExpandedTenantId" />
+    <input type="hidden" name="DepositsPageNumber" value="@Model.DepositsPageNumber" />
+    <input type="hidden" name="ExpandedRoomId" value="@Model.ExpandedRoomId" />
+    <input type="hidden" name="ExpandedDepositUnitId" value="@Model.ExpandedDepositUnitId" />
     <div class="col-md-6">
         <input asp-for="PropertySearch" class="form-control" placeholder="Search property by name or address" />
     </div>
@@ -64,7 +70,6 @@
                                                 <tr>
                                                     <th>Unit</th>
                                                     <th>Monthly Rent</th>
-                                                    <th>Rooms</th>
                                                     <th>Max Capacity</th>
                                                     <th>Status</th>
                                                     <th class="text-end">Actions</th>
@@ -74,7 +79,7 @@
                                                 @if (propertyUnits.Count == 0)
                                                 {
                                                     <tr>
-                                                        <td colspan="6" class="text-center text-muted">No units found for this property.</td>
+                                                        <td colspan="5" class="text-center text-muted">No units found for this property.</td>
                                                     </tr>
                                                 }
                                                 else
@@ -85,30 +90,26 @@
 
                                                         <tr>
                                                             <td>
-                                                                <button type="button" class="btn btn-sm btn-outline-secondary unit-toggle" data-bs-toggle="collapse" data-bs-target="#@unitRoomsCollapseId" aria-expanded="false" aria-controls="@unitRoomsCollapseId">View Rooms</button>
+                                                                <button type="button" class="btn btn-sm btn-outline-secondary unit-toggle" data-bs-toggle="collapse" data-bs-target="#@unitRoomsCollapseId" aria-expanded="false" aria-controls="@unitRoomsCollapseId">View Capacity</button>
                                                                 <span class="ms-2">@unit.UnitNumber</span>
                                                             </td>
                                                             <td>@unit.MonthlyRent.ToString("N2")</td>
-                                                            <td>@unit.RoomCount</td>
                                                             <td>@unit.RoomMaxCapacity</td>
                                                             <td>@(unit.IsActive ? unit.Status.ToString() : "Inactive")</td>
                                                             <td class="text-end">
-                                                                <div class="btn-group" role="group">
-                                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditUnitModal(@Html.Raw(JsonSerializer.Serialize(unit)))'>Edit</button>
-                                                                </div>
+                                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditUnitModal(@Html.Raw(JsonSerializer.Serialize(unit)))'>Edit</button>
                                                             </td>
                                                         </tr>
 
                                                         <tr class="collapse unit-collapse" id="@unitRoomsCollapseId">
-                                                            <td colspan="6" class="bg-white">
+                                                            <td colspan="5" class="bg-white">
                                                                 <div class="px-2 py-1">
-                                                                    <strong class="app-section-title mb-2">@unit.UnitNumber Room Status</strong>
+                                                                    <strong class="app-section-title mb-2">@unit.UnitNumber Capacity Status</strong>
                                                                     <div class="card app-card card-body bg-light">
                                                                         <div class="table-responsive">
                                                                             <table class="table app-grid table-sm table-bordered align-middle mb-0">
                                                                                 <thead>
                                                                                     <tr>
-                                                                                        <th>Room</th>
                                                                                         <th>Occupied</th>
                                                                                         <th>Capacity</th>
                                                                                         <th>Status</th>
@@ -118,20 +119,19 @@
                                                                                     @if (unit.RoomStatuses.Count == 0)
                                                                                     {
                                                                                         <tr>
-                                                                                            <td colspan="4" class="text-center text-muted">No active rooms for this unit.</td>
+                                                                                            <td colspan="3" class="text-center text-muted">No capacity data for this unit.</td>
                                                                                         </tr>
                                                                                     }
                                                                                     else
                                                                                     {
-                                                                                        @foreach (var room in unit.RoomStatuses)
-                                                                                        {
-                                                                                            <tr>
-                                                                                                <td>@room.RoomNumber</td>
-                                                                                                <td>@room.OccupiedCount</td>
-                                                                                                <td>@room.MaxCapacity</td>
-                                                                                                <td>@room.Status</td>
-                                                                                            </tr>
-                                                                                        }
+                                                                                        var occupiedTotal = unit.RoomStatuses.Sum(x => x.OccupiedCount);
+                                                                                        var capacityTotal = unit.RoomStatuses.Sum(x => x.MaxCapacity);
+                                                                                        var status = occupiedTotal >= capacityTotal ? "Occupied" : "Available";
+                                                                                        <tr>
+                                                                                            <td>@occupiedTotal</td>
+                                                                                            <td>@capacityTotal</td>
+                                                                                            <td>@status</td>
+                                                                                        </tr>
                                                                                     }
                                                                                 </tbody>
                                                                             </table>
@@ -164,190 +164,151 @@
     RouteValues = new Dictionary<string, string>
     {
         ["PropertySearch"] = Model.PropertySearch ?? string.Empty,
-        ["Search"] = Model.Search ?? string.Empty,
         ["PageNumber"] = Model.PageNumber.ToString(),
-        ["ExpandedTenantId"] = Model.ExpandedTenantId?.ToString() ?? string.Empty
+        ["DepositsPageNumber"] = Model.DepositsPageNumber.ToString(),
+        ["ExpandedRoomId"] = Model.ExpandedRoomId?.ToString() ?? string.Empty
     }
 })" />
 
 <div class="page-header-block mt-4">
-    <h2 class="mb-0">Apartment Tenants</h2>
-    <button type="button" class="btn btn-primary" id="openAddTenantModalBtn">Add Tenant</button>
+    <h2 class="mb-0">Payments</h2>
 </div>
-
-@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-{
-    <div class="alert alert-danger">@Model.ErrorMessage</div>
-}
-
-<form method="get" class="filter-bar row g-2 align-items-end">
-    <input type="hidden" name="PropertySearch" value="@Model.PropertySearch" />
-    <input type="hidden" name="PropertiesPageNumber" value="@Model.PropertiesPageNumber" />
-    <input type="hidden" name="ExpandedTenantId" value="@Model.ExpandedTenantId" />
-    <div class="col-md-6">
-        <input asp-for="Search" class="form-control" placeholder="Search tenant by name, contact, or email" />
-    </div>
-    <div class="col-auto">
-        <button type="submit" class="btn btn-outline-primary">Search</button>
-    </div>
-</form>
 
 <div class="card app-card card-body mb-3">
     <div class="table-responsive">
         <table class="table app-grid table-striped align-middle mb-0">
-        <thead>
-            <tr>
-                <th>Apartment</th>
-                <th>Tenant Name</th>
-                <th>Security Deposit</th>
-                <th>Contact Number</th>
-                <th style="width: 90px;" class="text-end">Payments</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var tenant in Model.PagedTenants.Items)
-            {
-                var collapseId = $"history-{tenant.Id}";
-                var activeApartment = Model.ActiveApartmentByTenantId.TryGetValue(tenant.Id, out var apartment) ? apartment : null;
-                var history = Model.PaymentHistoryByTenantId.TryGetValue(tenant.Id, out var payments) ? payments : [];
-
+            <thead>
                 <tr>
-                    <td>
-                        @if (activeApartment is null)
-                        {
-                            <span class="text-muted">No active apartment</span>
-                        }
-                        else
-                        {
-                            <span>@activeApartment.UnitNumber / @activeApartment.RoomNumber</span>
-                        }
-                    </td>
-                    <td>@tenant.FirstName @tenant.LastName</td>
-                    <td>
-                        @if (activeApartment is null)
-                        {
-                            <span class="text-muted">N/A</span>
-                        }
-                        else
-                        {
-                            @activeApartment.SecurityDeposit.ToString("N2")
-                        }
-                    </td>
-                    <td>@tenant.ContactNumber</td>
-                    <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-secondary tenant-payments-toggle" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="@(Model.ExpandedTenantId == tenant.Id ? "true" : "false")" aria-controls="@collapseId">Payments</button>
-                    </td>
+                    <th style="width: 70px;"></th>
+                    <th>Unit</th>
+                    <th>Monthly Rent</th>
+                    <th>Due Date</th>
+                    <th>No. of Tenants</th>
+                    <th>Status</th>
                 </tr>
+            </thead>
+            <tbody>
+                @if (Model.PagedPaymentRows.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No units found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.PagedPaymentRows.Items)
+                    {
+                        var collapseId = $"payments-room-{row.RoomId}";
+                        var history = Model.PaymentHistoryByRoomId.TryGetValue(row.RoomId, out var roomPayments) ? roomPayments : [];
 
-                <tr class="collapse @(Model.ExpandedTenantId == tenant.Id ? "show" : null)" id="@collapseId" data-tenant-id="@tenant.Id">
-                    <td colspan="5" class="bg-light">
-                        <div class="p-2">
-                            <strong class="d-block mb-2">Payment Transaction History</strong>
+                        <tr>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-secondary room-payments-toggle" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="@(Model.ExpandedRoomId == row.RoomId ? "true" : "false")" aria-controls="@collapseId">View</button>
+                            </td>
+                            <td>
+                                <div>@row.UnitRoomLabel</div>
+                                <div class="text-muted small">@row.PropertyName</div>
+                            </td>
+                            <td>@row.MonthlyRent.ToString("N2")</td>
+                            <td>@(row.DueDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
+                            <td>@row.TenantCountDisplay</td>
+                            <td>@row.Status</td>
+                        </tr>
 
-                            @{
-                                var unpaidItems = Model.UnpaidLeasesByTenantId.TryGetValue(tenant.Id, out var unpaidLeases) ? unpaidLeases : [];
-                            }
+                        <tr class="collapse @(Model.ExpandedRoomId == row.RoomId ? "show" : null)" id="@collapseId" data-room-id="@row.RoomId">
+                            <td colspan="6" class="bg-light">
+                                <div class="p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
+                                        <strong class="app-section-title mb-0">Payment History - @row.UnitRoomLabel</strong>
+                                        @if (row.CanAddPayment && row.LeaseId.HasValue)
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary open-add-payment-modal"
+                                                    data-room-id="@row.RoomId"
+                                                    data-lease-id="@row.LeaseId"
+                                                    data-amount="@row.DefaultAmount"
+                                                    data-unit-room="@row.UnitRoomLabel"
+                                                    data-due-date="@(row.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty)">
+                                                Add Payment
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled>No unpaid due</button>
+                                        }
+                                    </div>
 
-                            <div class="card app-card card-body mb-3 bg-white">
-                                <strong class="app-section-title mb-2">Paid History</strong>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered align-middle mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Date Paid</th>
-                                                <th>Amount Paid</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @if (history.Count == 0)
-                                            {
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                            <thead>
                                                 <tr>
-                                                    <td colspan="3" class="text-center text-muted">No payment transactions yet.</td>
+                                                    <th>Due Date</th>
+                                                    <th>Date Paid</th>
+                                                    <th>Amount</th>
+                                                    <th>Method</th>
+                                                    <th>Reference</th>
+                                                    <th>Notes</th>
+                                                    <th style="width: 120px;">Action</th>
                                                 </tr>
-                                            }
-                                            else
-                                            {
-                                                @foreach (var payment in history)
+                                            </thead>
+                                            <tbody>
+                                                @if (history.Count == 0)
                                                 {
                                                     <tr>
-                                                        <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
-                                                        <td>@payment.Amount.ToString("N2")</td>
-                                                        <td>@payment.PaymentStatus</td>
+                                                        <td colspan="7" class="text-center text-muted">No payment history yet.</td>
                                                     </tr>
                                                 }
-                                            }
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div class="card app-card card-body bg-white">
-                                <strong class="app-section-title mb-2">Unpaid Amounts</strong>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered align-middle mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Apartment</th>
-                                                <th>Rent</th>
-                                                <th>Paid</th>
-                                                <th>Unpaid</th>
-                                                <th style="width: 130px;">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @if (unpaidItems.Count == 0)
-                                            {
-                                                <tr>
-                                                    <td colspan="5" class="text-center text-muted">No unpaid amounts.</td>
-                                                </tr>
-                                            }
-                                            else
-                                            {
-                                                @foreach (var unpaid in unpaidItems)
+                                                else
                                                 {
-                                                    <tr>
-                                                        <td>@unpaid.ApartmentLabel</td>
-                                                        <td>@unpaid.MonthlyRent.ToString("N2")</td>
-                                                        <td>@unpaid.PaidAmount.ToString("N2")</td>
-                                                        <td>@unpaid.UnpaidAmount.ToString("N2")</td>
-                                                        <td>
-                                                            <button type="button"
-                                                                    class="btn btn-sm btn-primary open-tenant-payment-modal"
-                                                                    data-tenant-id="@tenant.Id"
-                                                                    data-lease-id="@unpaid.LeaseId"
-                                                                    data-amount="@unpaid.UnpaidAmount"
-                                                                    data-apartment="@unpaid.ApartmentLabel">
-                                                                Add Payment
-                                                            </button>
-                                                        </td>
-                                                    </tr>
+                                                    @foreach (var payment in history)
+                                                    {
+                                                        <tr>
+                                                            <td>@payment.DueDate.ToString("MMM-dd-yyyy")</td>
+                                                            <td>@payment.PaymentDate.ToString("MMM-dd-yyyy")</td>
+                                                            <td>@payment.Amount.ToString("N2")</td>
+                                                            <td>@payment.PaymentMethod</td>
+                                                            <td>@(string.IsNullOrWhiteSpace(payment.ReferenceNumber) ? "-" : payment.ReferenceNumber)</td>
+                                                            <td>@(string.IsNullOrWhiteSpace(payment.Notes) ? "-" : payment.Notes)</td>
+                                                            <td>
+                                                                <button type="button"
+                                                                        class="btn btn-sm btn-outline-warning open-edit-payment-modal"
+                                                                        data-payment-id="@payment.Id"
+                                                                        data-room-id="@row.RoomId"
+                                                                        data-amount="@payment.Amount"
+                                                                        data-payment-date="@payment.PaymentDate.ToString("yyyy-MM-dd")"
+                                                                        data-payment-method="@payment.PaymentMethod"
+                                                                        data-reference="@payment.ReferenceNumber"
+                                                                        data-notes="@payment.Notes">
+                                                                    Edit
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    }
                                                 }
-                                            }
-                                        </tbody>
-                                    </table>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                    </td>
-                </tr>
-            }
-        </tbody>
-            </table>
-        </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
     </div>
+</div>
 
-    <partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
 {
     PageUrl = "/ApartmentTenants/Index",
-    PageNumber = Model.PagedTenants.PageNumber,
-    TotalPages = Model.PagedTenants.TotalPages,
+    PageNumber = Model.PagedPaymentRows.PageNumber,
+    TotalPages = Model.PagedPaymentRows.TotalPages,
     RouteValues = new Dictionary<string, string>
     {
-        ["Search"] = Model.Search ?? string.Empty,
         ["PropertySearch"] = Model.PropertySearch ?? string.Empty,
         ["PropertiesPageNumber"] = Model.PropertiesPageNumber.ToString(),
-        ["ExpandedTenantId"] = Model.ExpandedTenantId?.ToString() ?? string.Empty
+        ["DepositsPageNumber"] = Model.DepositsPageNumber.ToString(),
+        ["ExpandedRoomId"] = Model.ExpandedRoomId?.ToString() ?? string.Empty
     }
 })" />
 
@@ -368,10 +329,6 @@
                     <div class="mb-3">
                         <label class="form-label">Address</label>
                         <input class="form-control" id="propertyAddress" required maxlength="500" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="propertyDescription" rows="3" maxlength="1000"></textarea>
                     </div>
                     <div class="alert alert-danger d-none" id="propertyModalError"></div>
                 </div>
@@ -422,10 +379,6 @@
                             <option value="4">Inactive</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="unitDescription" rows="3" maxlength="1000"></textarea>
-                    </div>
                     <div class="alert alert-danger d-none" id="unitModalError"></div>
                 </div>
                 <div class="modal-footer">
@@ -437,150 +390,45 @@
     </div>
 </div>
 
-<div class="modal fade" id="addTenantModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <form method="post" asp-page-handler="AddTenantApartment">
-                <div asp-validation-summary="ModelOnly" class="text-danger px-3 pt-2"></div>
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Tenant</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <h6 class="mb-2">Tenant Information</h6>
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="TenantInput.FirstName" class="form-label"></label>
-                            <input asp-for="TenantInput.FirstName" class="form-control" />
-                            <span asp-validation-for="TenantInput.FirstName" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="TenantInput.LastName" class="form-label"></label>
-                            <input asp-for="TenantInput.LastName" class="form-control" />
-                            <span asp-validation-for="TenantInput.LastName" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="TenantInput.ContactNumber" class="form-label"></label>
-                            <input asp-for="TenantInput.ContactNumber" class="form-control" />
-                            <span asp-validation-for="TenantInput.ContactNumber" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="TenantInput.Email" class="form-label"></label>
-                            <input asp-for="TenantInput.Email" class="form-control" />
-                            <span asp-validation-for="TenantInput.Email" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <div class="mb-2">
-                        <label asp-for="TenantInput.Address" class="form-label"></label>
-                        <input asp-for="TenantInput.Address" class="form-control" />
-                        <span asp-validation-for="TenantInput.Address" class="text-danger"></span>
-                    </div>
-
-                    <hr />
-                    <h6 class="mb-2">Apartment Information</h6>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="ApartmentInput.UnitId" class="form-label"></label>
-                            <select asp-for="ApartmentInput.UnitId" asp-items="Model.UnitOptions" class="form-select" id="tenantApartmentUnitSelect"></select>
-                            <span asp-validation-for="ApartmentInput.UnitId" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <label asp-for="ApartmentInput.RoomId" class="form-label"></label>
-                            <select asp-for="ApartmentInput.RoomId" asp-items="Model.TenantApartmentRoomOptions" class="form-select" id="tenantApartmentRoomSelect"></select>
-                            <span asp-validation-for="ApartmentInput.RoomId" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <label asp-for="ApartmentInput.MonthlyRent" class="form-label"></label>
-                            <input asp-for="ApartmentInput.MonthlyRent" class="form-control" id="tenantApartmentMonthlyRent" />
-                            <span asp-validation-for="ApartmentInput.MonthlyRent" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label asp-for="ApartmentInput.StartDate" class="form-label"></label>
-                            <input asp-for="ApartmentInput.StartDate" class="form-control" />
-                            <span asp-validation-for="ApartmentInput.StartDate" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label asp-for="ApartmentInput.DueDayOfMonth" class="form-label"></label>
-                            <input asp-for="ApartmentInput.DueDayOfMonth" class="form-control" />
-                            <span asp-validation-for="ApartmentInput.DueDayOfMonth" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <div class="mb-2">
-                        <label asp-for="ApartmentInput.SecurityDeposit" class="form-label"></label>
-                        <input asp-for="ApartmentInput.SecurityDeposit" class="form-control" />
-                        <span asp-validation-for="ApartmentInput.SecurityDeposit" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-2">
-                        <label asp-for="ApartmentInput.Notes" class="form-label"></label>
-                        <textarea asp-for="ApartmentInput.Notes" class="form-control" rows="2"></textarea>
-                        <span asp-validation-for="ApartmentInput.Notes" class="text-danger"></span>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" type="submit">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addTenantPaymentModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" asp-page-handler="AddTenantPayment">
+            <form method="post" asp-page-handler="AddPayment" id="addPaymentForm">
                 <div asp-validation-summary="ModelOnly" class="text-danger px-3 pt-2"></div>
                 <div class="modal-header">
                     <h5 class="modal-title">Add Payment</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" asp-for="AddTenantPaymentInput.TenantId" id="paymentTenantId" />
-                    <input type="hidden" asp-for="AddTenantPaymentInput.LeaseId" id="paymentLeaseId" />
+                    <input type="hidden" asp-for="AddPaymentInput.RoomId" id="addPaymentRoomId" />
+                    <input type="hidden" asp-for="AddPaymentInput.LeaseId" id="addPaymentLeaseId" />
 
                     <div class="mb-2">
-                        <label class="form-label">Apartment</label>
-                        <input type="text" class="form-control" id="paymentApartmentLabel" readonly />
+                        <label class="form-label">Unit</label>
+                        <input type="text" class="form-control" id="addPaymentUnitRoomLabel" readonly />
                     </div>
 
                     <div class="mb-2">
-                        <label asp-for="AddTenantPaymentInput.Amount" class="form-label"></label>
-                        <input asp-for="AddTenantPaymentInput.Amount" class="form-control" id="paymentAmountInput" />
-                        <span asp-validation-for="AddTenantPaymentInput.Amount" class="text-danger"></span>
+                        <label asp-for="AddPaymentInput.Amount" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.Amount" class="form-control" id="addPaymentAmountInput" />
+                        <span asp-validation-for="AddPaymentInput.Amount" class="text-danger"></span>
                     </div>
 
                     <div class="mb-2">
-                        <label asp-for="AddTenantPaymentInput.PaymentDate" class="form-label"></label>
-                        <input asp-for="AddTenantPaymentInput.PaymentDate" class="form-control" type="date" id="paymentDateInput" />
-                        <span asp-validation-for="AddTenantPaymentInput.PaymentDate" class="text-danger"></span>
+                        <label class="form-label">Due Date</label>
+                        <input type="text" class="form-control" id="addPaymentDueDate" readonly />
                     </div>
 
                     <div class="mb-2">
-                        <label asp-for="AddTenantPaymentInput.PaymentMethod" class="form-label"></label>
-                        <select asp-for="AddTenantPaymentInput.PaymentMethod" asp-items="Model.PaymentMethodOptions" class="form-select" id="paymentMethodInput"></select>
-                        <span asp-validation-for="AddTenantPaymentInput.PaymentMethod" class="text-danger"></span>
+                        <label asp-for="AddPaymentInput.PaymentDate" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.PaymentDate" class="form-control" type="date" id="addPaymentDateInput" />
+                        <span asp-validation-for="AddPaymentInput.PaymentDate" class="text-danger"></span>
                     </div>
 
                     <div class="mb-2">
-                        <label asp-for="AddTenantPaymentInput.ReferenceNumber" class="form-label"></label>
-                        <input asp-for="AddTenantPaymentInput.ReferenceNumber" class="form-control" id="paymentReferenceInput" />
-                        <span asp-validation-for="AddTenantPaymentInput.ReferenceNumber" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-2">
-                        <label asp-for="AddTenantPaymentInput.Notes" class="form-label"></label>
-                        <textarea asp-for="AddTenantPaymentInput.Notes" class="form-control" rows="2" id="paymentNotesInput"></textarea>
-                        <span asp-validation-for="AddTenantPaymentInput.Notes" class="text-danger"></span>
+                        <label asp-for="AddPaymentInput.PaymentMethod" class="form-label"></label>
+                        <select asp-for="AddPaymentInput.PaymentMethod" asp-items="Model.PaymentMethodOptions" class="form-select" id="addPaymentMethodInput"></select>
+                        <span asp-validation-for="AddPaymentInput.PaymentMethod" class="text-danger"></span>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -592,64 +440,326 @@
     </div>
 </div>
 
+<div class="page-header-block mt-4">
+    <h2 class="mb-0">Deposits</h2>
+</div>
+
+<div class="card app-card card-body mb-3">
+    <div class="table-responsive">
+        <table class="table app-grid table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Deposit</th>
+                    <th>Date Paid</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.PagedDepositRows.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No deposits found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.PagedDepositRows.Items)
+                    {
+                        var depositCollapseId = $"deposits-unit-{row.UnitId}";
+                        var unitDepositHistory = Model.DepositHistoryByUnitId.TryGetValue(row.UnitId, out var deposits) ? deposits : [];
+
+                        <tr>
+                            <td>
+                                <div>@row.UnitLabel</div>
+                                <div class="text-muted small">@row.PropertyName</div>
+                            </td>
+                            <td>@(row.DepositAmount.HasValue ? row.DepositAmount.Value.ToString("N2") : "-")</td>
+                            <td>@(row.DatePaid?.ToString("MMM-dd-yyyy") ?? "-")</td>
+                            <td class="text-end">
+                                <div class="d-inline-flex align-items-center gap-2">
+                                    @if (row.DepositCount > 1)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary deposit-history-toggle"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#@depositCollapseId"
+                                                aria-expanded="@(Model.ExpandedDepositUnitId == row.UnitId ? "true" : "false")"
+                                                aria-controls="@depositCollapseId">
+                                            View Deposits
+                                        </button>
+                                    }
+
+                                    @if (row.CanAddDeposit && row.LeaseId.HasValue)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-primary open-add-deposit-modal"
+                                                data-unit-id="@row.UnitId"
+                                                data-lease-id="@row.LeaseId"
+                                                data-unit-label="@row.UnitLabel"
+                                                data-property-name="@row.PropertyName"
+                                                data-amount="0">
+                                            Add Deposit
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>No active lease</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+
+                        <tr class="collapse @(Model.ExpandedDepositUnitId == row.UnitId ? "show" : null)" id="@depositCollapseId" data-deposit-unit-id="@row.UnitId">
+                            <td colspan="4" class="bg-light">
+                                <div class="p-2">
+                                    <strong class="app-section-title mb-2">Deposit History - @row.UnitLabel</strong>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date Paid</th>
+                                                    <th>Deposit</th>
+                                                    <th>Method</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (unitDepositHistory.Count == 0)
+                                                {
+                                                    <tr>
+                                                        <td colspan="3" class="text-center text-muted">No deposit history yet.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var deposit in unitDepositHistory)
+                                                    {
+                                                        <tr>
+                                                            <td>@deposit.PaymentDate.ToString("MMM-dd-yyyy")</td>
+                                                            <td>@deposit.Amount.ToString("N2")</td>
+                                                            <td>@deposit.PaymentMethod</td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<partial name="_Pagination" model="@(new RentalApp.Pages.Shared.PaginationModel
+{
+    PageUrl = "/ApartmentTenants/Index",
+    PageParameterName = "DepositsPageNumber",
+    PageNumber = Model.PagedDepositRows.PageNumber,
+    TotalPages = Model.PagedDepositRows.TotalPages,
+    RouteValues = new Dictionary<string, string>
+    {
+        ["PropertySearch"] = Model.PropertySearch ?? string.Empty,
+        ["PropertiesPageNumber"] = Model.PropertiesPageNumber.ToString(),
+        ["PageNumber"] = Model.PageNumber.ToString(),
+        ["ExpandedRoomId"] = Model.ExpandedRoomId?.ToString() ?? string.Empty,
+        ["ExpandedDepositUnitId"] = Model.ExpandedDepositUnitId?.ToString() ?? string.Empty
+    }
+})" />
+
+<div class="modal fade" id="addDepositModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="AddDeposit" id="addDepositForm">
+                <div asp-validation-summary="ModelOnly" class="text-danger px-3 pt-2"></div>
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Deposit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" asp-for="AddDepositInput.UnitId" id="addDepositUnitId" />
+                    <input type="hidden" asp-for="AddDepositInput.LeaseId" id="addDepositLeaseId" />
+
+                    <div class="mb-2">
+                        <label class="form-label">Unit</label>
+                        <input type="text" class="form-control" id="addDepositUnitLabel" readonly />
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddDepositInput.Amount" class="form-label">Deposit</label>
+                        <input asp-for="AddDepositInput.Amount" class="form-control" id="addDepositAmountInput" />
+                        <span asp-validation-for="AddDepositInput.Amount" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddDepositInput.PaymentDate" class="form-label"></label>
+                        <input asp-for="AddDepositInput.PaymentDate" class="form-control" type="date" id="addDepositDateInput" />
+                        <span asp-validation-for="AddDepositInput.PaymentDate" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddDepositInput.PaymentMethod" class="form-label"></label>
+                        <select asp-for="AddDepositInput.PaymentMethod" asp-items="Model.PaymentMethodOptions" class="form-select" id="addDepositMethodInput"></select>
+                        <span asp-validation-for="AddDepositInput.PaymentMethod" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Save Deposit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="EditPayment">
+                <div asp-validation-summary="ModelOnly" class="text-danger px-3 pt-2"></div>
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Payment (Temporary)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" asp-for="EditPaymentInput.PaymentId" id="editPaymentId" />
+                    <input type="hidden" asp-for="EditPaymentInput.RoomId" id="editPaymentRoomId" />
+
+                    <div class="mb-2">
+                        <label asp-for="EditPaymentInput.Amount" class="form-label"></label>
+                        <input asp-for="EditPaymentInput.Amount" class="form-control" id="editPaymentAmountInput" />
+                        <span asp-validation-for="EditPaymentInput.Amount" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="EditPaymentInput.PaymentDate" class="form-label"></label>
+                        <input asp-for="EditPaymentInput.PaymentDate" class="form-control" type="date" id="editPaymentDateInput" />
+                        <span asp-validation-for="EditPaymentInput.PaymentDate" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="EditPaymentInput.PaymentMethod" class="form-label"></label>
+                        <select asp-for="EditPaymentInput.PaymentMethod" asp-items="Model.PaymentMethodOptions" class="form-select" id="editPaymentMethodInput"></select>
+                        <span asp-validation-for="EditPaymentInput.PaymentMethod" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="EditPaymentInput.ReferenceNumber" class="form-label"></label>
+                        <input asp-for="EditPaymentInput.ReferenceNumber" class="form-control" id="editPaymentReferenceInput" />
+                        <span asp-validation-for="EditPaymentInput.ReferenceNumber" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="EditPaymentInput.Notes" class="form-label"></label>
+                        <textarea asp-for="EditPaymentInput.Notes" class="form-control" rows="2" id="editPaymentNotesInput"></textarea>
+                        <span asp-validation-for="EditPaymentInput.Notes" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
         const propertyModal = new bootstrap.Modal(document.getElementById('propertyModal'));
         const unitModal = new bootstrap.Modal(document.getElementById('unitModal'));
+        const addPaymentModalElement = document.getElementById('addPaymentModal');
+        const addPaymentModal = addPaymentModalElement ? new bootstrap.Modal(addPaymentModalElement) : null;
+        const addDepositModalElement = document.getElementById('addDepositModal');
+        const addDepositModal = addDepositModalElement ? new bootstrap.Modal(addDepositModalElement) : null;
+        const editPaymentModalElement = document.getElementById('editPaymentModal');
+        const editPaymentModal = editPaymentModalElement ? new bootstrap.Modal(editPaymentModalElement) : null;
 
-        const addTenantModalElement = document.getElementById('addTenantModal');
-        const addTenantModal = addTenantModalElement ? new bootstrap.Modal(addTenantModalElement) : null;
-
-        const addTenantPaymentModalElement = document.getElementById('addTenantPaymentModal');
-        const addTenantPaymentModal = addTenantPaymentModalElement ? new bootstrap.Modal(addTenantPaymentModalElement) : null;
-
-        document.getElementById('openAddTenantModalBtn')?.addEventListener('click', function () {
-            addTenantModal?.show();
-        });
-
-        if (@Model.ShowAddTenantModal.ToString().ToLowerInvariant()) {
-            addTenantModal?.show();
+        if (@Model.ShowAddPaymentModal.ToString().ToLowerInvariant()) {
+            addPaymentModal?.show();
         }
 
-        if (@Model.ShowAddTenantPaymentModal.ToString().ToLowerInvariant()) {
-            addTenantPaymentModal?.show();
+        if (@Model.ShowEditPaymentModal.ToString().ToLowerInvariant()) {
+            editPaymentModal?.show();
         }
 
-        async function loadUnitInfo(unitId, roomSelectId, rentInputId) {
-            if (!unitId) {
-                document.getElementById(roomSelectId).innerHTML = '';
+        function showError(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.classList.remove('d-none');
+        }
+
+        function clearError(elementId) {
+            const el = document.getElementById(elementId);
+            el.textContent = '';
+            el.classList.add('d-none');
+        }
+
+        async function replaceAppContentFromHtml(html, urlToPush) {
+            const appContent = document.querySelector('.app-content');
+            if (!appContent) {
+                window.location.href = urlToPush || window.location.href;
                 return;
             }
 
-            const response = await fetch(`/api/leases/unit-info/${unitId}`);
-            if (!response.ok) return;
-
-            const data = await response.json();
-            const roomSelect = document.getElementById(roomSelectId);
-            const rentInput = document.getElementById(rentInputId);
-
-            if (rentInput) {
-                rentInput.value = Number(data.monthlyRent ?? 0).toFixed(2);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const nextContent = doc.querySelector('.app-content');
+            if (!nextContent) {
+                window.location.href = urlToPush || window.location.href;
+                return;
             }
 
-            roomSelect.innerHTML = '';
-            (data.rooms || []).forEach(r => {
-                if (r.availableSlots > 0) {
-                    const opt = document.createElement('option');
-                    opt.value = r.roomId;
-                    opt.text = `${r.roomNumber} (${r.occupiedCount}/${r.maxCapacity})`;
-                    roomSelect.add(opt);
+            appContent.innerHTML = nextContent.innerHTML;
+
+            const scripts = Array.from(appContent.querySelectorAll('script'));
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+
+                if (oldScript.src) {
+                    const exists = document.querySelector(`script[src='${oldScript.getAttribute('src')}']`);
+                    if (!exists) {
+                        document.body.appendChild(newScript);
+                    }
+                } else {
+                    newScript.text = oldScript.text;
+                    document.body.appendChild(newScript);
                 }
+
+                oldScript.remove();
             });
+
+            if (urlToPush) {
+                window.history.pushState({}, '', urlToPush);
+            }
         }
 
-        document.getElementById('tenantApartmentUnitSelect')?.addEventListener('change', function () {
-            loadUnitInfo(this.value, 'tenantApartmentRoomSelect', 'tenantApartmentMonthlyRent');
-        });
+        async function refreshCurrentPageContent() {
+            const url = window.location.href;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                window.location.reload();
+                return;
+            }
+
+            const html = await response.text();
+            await replaceAppContentFromHtml(html, url);
+        }
 
         const propertyCollapseRows = Array.from(document.querySelectorAll('tr.property-collapse'));
         const unitCollapseRows = Array.from(document.querySelectorAll('tr.unit-collapse'));
+        const roomPaymentRows = Array.from(document.querySelectorAll('tr.collapse[data-room-id]'));
+        const depositHistoryRows = Array.from(document.querySelectorAll('tr.collapse[data-deposit-unit-id]'));
         const propertiesOpenStorageKey = 'apartmentTenants:lastOpenPropertyId';
 
         function closeOtherRows(rows, currentTargetSelector) {
@@ -686,17 +796,21 @@
             });
         });
 
-        function showError(elementId, message) {
-            const el = document.getElementById(elementId);
-            el.textContent = message;
-            el.classList.remove('d-none');
-        }
+        document.querySelectorAll('.room-payments-toggle').forEach(button => {
+            button.addEventListener('click', function () {
+                const targetSelector = this.getAttribute('data-bs-target');
+                if (!targetSelector) return;
+                closeOtherRows(roomPaymentRows, targetSelector);
+            });
+        });
 
-        function clearError(elementId) {
-            const el = document.getElementById(elementId);
-            el.textContent = '';
-            el.classList.add('d-none');
-        }
+        document.querySelectorAll('.deposit-history-toggle').forEach(button => {
+            button.addEventListener('click', function () {
+                const targetSelector = this.getAttribute('data-bs-target');
+                if (!targetSelector) return;
+                closeOtherRows(depositHistoryRows, targetSelector);
+            });
+        });
 
         window.openAddPropertyModal = function () {
             clearError('propertyModalError');
@@ -704,7 +818,6 @@
             document.getElementById('propertyId').value = '';
             document.getElementById('propertyName').value = '';
             document.getElementById('propertyAddress').value = '';
-            document.getElementById('propertyDescription').value = '';
             propertyModal.show();
         }
 
@@ -714,7 +827,6 @@
             document.getElementById('propertyId').value = property.Id;
             document.getElementById('propertyName').value = property.Name ?? '';
             document.getElementById('propertyAddress').value = property.Address ?? '';
-            document.getElementById('propertyDescription').value = property.Description ?? '';
             propertyModal.show();
         }
 
@@ -729,7 +841,6 @@
             document.getElementById('unitRoomCount').value = '1';
             document.getElementById('unitRoomMaxCapacity').value = '3';
             document.getElementById('unitStatus').value = '1';
-            document.getElementById('unitDescription').value = '';
             unitModal.show();
         }
 
@@ -744,7 +855,6 @@
             document.getElementById('unitRoomMaxCapacity').value = unit.RoomMaxCapacity ?? 3;
             const statusMap = { 'Available': '1', 'Occupied': '2', 'Maintenance': '3', 'Inactive': '4' };
             document.getElementById('unitStatus').value = statusMap[unit.Status] ?? '1';
-            document.getElementById('unitDescription').value = unit.Description ?? '';
             unitModal.show();
         }
 
@@ -768,8 +878,7 @@
             const id = document.getElementById('propertyId').value;
             const payload = {
                 name: document.getElementById('propertyName').value,
-                address: document.getElementById('propertyAddress').value,
-                description: document.getElementById('propertyDescription').value
+                address: document.getElementById('propertyAddress').value
             };
 
             const response = await fetch(id ? `/api/properties/${id}` : '/api/properties', {
@@ -784,7 +893,8 @@
                 return;
             }
 
-            location.reload();
+            propertyModal.hide();
+            await refreshCurrentPageContent();
         });
 
         document.getElementById('unitForm')?.addEventListener('submit', async function (e) {
@@ -796,14 +906,14 @@
             if (selectedPropertyId) {
                 sessionStorage.setItem(propertiesOpenStorageKey, selectedPropertyId);
             }
+
             const payload = {
                 propertyId: Number(document.getElementById('unitPropertyId').value),
                 unitNumber: document.getElementById('unitNumber').value,
                 monthlyRent: Number(document.getElementById('unitMonthlyRent').value),
                 roomCount: Number(document.getElementById('unitRoomCount').value),
                 roomMaxCapacity: Number(document.getElementById('unitRoomMaxCapacity').value),
-                status: Number(document.getElementById('unitStatus').value),
-                description: document.getElementById('unitDescription').value
+                status: Number(document.getElementById('unitStatus').value)
             };
 
             const response = await fetch(id ? `/api/units/${id}` : '/api/units', {
@@ -818,59 +928,124 @@
                 return;
             }
 
-            location.reload();
+            unitModal.hide();
+            await refreshCurrentPageContent();
         });
 
-        const paymentTenantIdInput = document.getElementById('paymentTenantId');
-        const paymentLeaseIdInput = document.getElementById('paymentLeaseId');
-        const paymentAmountInput = document.getElementById('paymentAmountInput');
-        const paymentApartmentLabelInput = document.getElementById('paymentApartmentLabel');
+        const addPaymentRoomIdInput = document.getElementById('addPaymentRoomId');
+        const addPaymentLeaseIdInput = document.getElementById('addPaymentLeaseId');
+        const addPaymentAmountInput = document.getElementById('addPaymentAmountInput');
+        const addPaymentUnitRoomLabelInput = document.getElementById('addPaymentUnitRoomLabel');
+        const addPaymentDueDateInput = document.getElementById('addPaymentDueDate');
 
-        document.querySelectorAll('.open-tenant-payment-modal').forEach(button => {
+        document.querySelectorAll('.open-add-payment-modal').forEach(button => {
             button.addEventListener('click', function () {
-                const tenantId = this.dataset.tenantId || '';
+                const roomId = this.dataset.roomId || '';
                 const leaseId = this.dataset.leaseId || '';
                 const amount = this.dataset.amount || '';
-                const apartment = this.dataset.apartment || '';
+                const unitRoom = this.dataset.unitRoom || '';
+                const dueDate = this.dataset.dueDate || '';
 
-                if (paymentTenantIdInput) paymentTenantIdInput.value = tenantId;
-                if (paymentLeaseIdInput) paymentLeaseIdInput.value = leaseId;
-                if (paymentAmountInput) paymentAmountInput.value = Number(amount).toFixed(2);
-                if (paymentApartmentLabelInput) paymentApartmentLabelInput.value = apartment;
+                if (addPaymentRoomIdInput) addPaymentRoomIdInput.value = roomId;
+                if (addPaymentLeaseIdInput) addPaymentLeaseIdInput.value = leaseId;
+                if (addPaymentAmountInput) addPaymentAmountInput.value = Number(amount).toFixed(2);
+                if (addPaymentUnitRoomLabelInput) addPaymentUnitRoomLabelInput.value = unitRoom;
+                if (addPaymentDueDateInput) addPaymentDueDateInput.value = dueDate;
 
-                addTenantPaymentModal?.show();
+                addPaymentModal?.show();
             });
         });
 
-        if (@Model.ShowAddTenantPaymentModal.ToString().ToLowerInvariant()) {
-            if (paymentTenantIdInput) paymentTenantIdInput.value = '@Model.PaymentModalTenantId';
-            if (paymentLeaseIdInput) paymentLeaseIdInput.value = '@Model.PaymentModalLeaseId';
-        }
+        const addPaymentForm = document.getElementById('addPaymentForm');
+        addPaymentForm?.addEventListener('submit', async function (e) {
+            e.preventDefault();
 
-        const paymentHistoryRows = Array.from(document.querySelectorAll('tr.collapse[data-tenant-id]'));
-
-        function closeOtherPaymentHistories(currentTargetSelector) {
-            paymentHistoryRows.forEach(row => {
-                const selector = `#${row.id}`;
-                if (selector !== currentTargetSelector && row.classList.contains('show')) {
-                    bootstrap.Collapse.getOrCreateInstance(row, { toggle: false }).hide();
-                }
+            const formData = new FormData(addPaymentForm);
+            const response = await fetch(addPaymentForm.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
             });
-        }
 
-        document.querySelectorAll('.tenant-payments-toggle').forEach(button => {
+            const html = await response.text();
+            await replaceAppContentFromHtml(html, window.location.href);
+        });
+
+        const addDepositUnitIdInput = document.getElementById('addDepositUnitId');
+        const addDepositLeaseIdInput = document.getElementById('addDepositLeaseId');
+        const addDepositAmountInput = document.getElementById('addDepositAmountInput');
+        const addDepositUnitLabelInput = document.getElementById('addDepositUnitLabel');
+
+        document.querySelectorAll('.open-add-deposit-modal').forEach(button => {
             button.addEventListener('click', function () {
-                const targetSelector = this.getAttribute('data-bs-target');
-                if (!targetSelector) return;
-                closeOtherPaymentHistories(targetSelector);
+                const unitId = this.dataset.unitId || '';
+                const leaseId = this.dataset.leaseId || '';
+                const amount = this.dataset.amount || '';
+                const unitLabel = this.dataset.unitLabel || '';
+                const propertyName = this.dataset.propertyName || '';
+
+                if (addDepositUnitIdInput) addDepositUnitIdInput.value = unitId;
+                if (addDepositLeaseIdInput) addDepositLeaseIdInput.value = leaseId;
+                if (addDepositAmountInput) addDepositAmountInput.value = amount && Number(amount) > 0 ? Number(amount).toFixed(2) : '';
+                if (addDepositUnitLabelInput) addDepositUnitLabelInput.value = `${unitLabel} - ${propertyName}`;
+
+                addDepositModal?.show();
             });
         });
 
-        const expandedTenantId = '@(Model.ExpandedTenantId?.ToString() ?? string.Empty)';
-        if (expandedTenantId) {
-            const row = document.querySelector(`tr.collapse[data-tenant-id='${expandedTenantId}']`);
+        const addDepositForm = document.getElementById('addDepositForm');
+        addDepositForm?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(addDepositForm);
+            const response = await fetch(addDepositForm.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+
+            const html = await response.text();
+            await replaceAppContentFromHtml(html, window.location.href);
+        });
+
+        const editPaymentIdInput = document.getElementById('editPaymentId');
+        const editPaymentRoomIdInput = document.getElementById('editPaymentRoomId');
+        const editPaymentAmountInput = document.getElementById('editPaymentAmountInput');
+        const editPaymentDateInput = document.getElementById('editPaymentDateInput');
+        const editPaymentMethodInput = document.getElementById('editPaymentMethodInput');
+        const editPaymentReferenceInput = document.getElementById('editPaymentReferenceInput');
+        const editPaymentNotesInput = document.getElementById('editPaymentNotesInput');
+
+        document.querySelectorAll('.open-edit-payment-modal').forEach(button => {
+            button.addEventListener('click', function () {
+                if (editPaymentIdInput) editPaymentIdInput.value = this.dataset.paymentId || '';
+                if (editPaymentRoomIdInput) editPaymentRoomIdInput.value = this.dataset.roomId || '';
+                if (editPaymentAmountInput) editPaymentAmountInput.value = Number(this.dataset.amount || 0).toFixed(2);
+                if (editPaymentDateInput) editPaymentDateInput.value = this.dataset.paymentDate || '';
+                if (editPaymentMethodInput) editPaymentMethodInput.value = this.dataset.paymentMethod || 'Cash';
+                if (editPaymentReferenceInput) editPaymentReferenceInput.value = this.dataset.reference || '';
+                if (editPaymentNotesInput) editPaymentNotesInput.value = this.dataset.notes || '';
+                editPaymentModal?.show();
+            });
+        });
+
+        const expandedRoomId = '@(Model.ExpandedRoomId?.ToString() ?? string.Empty)';
+        if (expandedRoomId) {
+            const row = document.querySelector(`tr.collapse[data-room-id='${expandedRoomId}']`);
             if (row && !row.classList.contains('show')) {
-                closeOtherPaymentHistories(`#${row.id}`);
+                closeOtherRows(roomPaymentRows, `#${row.id}`);
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(row, { toggle: false });
+                bsCollapse.show();
+            }
+        }
+
+        const expandedDepositUnitId = '@(Model.ExpandedDepositUnitId?.ToString() ?? string.Empty)';
+        if (expandedDepositUnitId) {
+            const row = document.querySelector(`tr.collapse[data-deposit-unit-id='${expandedDepositUnitId}']`);
+            if (row && !row.classList.contains('show')) {
+                closeOtherRows(depositHistoryRows, `#${row.id}`);
                 const bsCollapse = bootstrap.Collapse.getOrCreateInstance(row, { toggle: false });
                 bsCollapse.show();
             }

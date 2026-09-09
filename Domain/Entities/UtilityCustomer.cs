@@ -11,6 +11,7 @@ public class UtilityCustomer
     public string Name { get; set; } = string.Empty;
     public UtilityCustomerType CustomerType { get; set; } = UtilityCustomerType.Other;
     public UtilityDueDateRuleType DueDateRuleType { get; set; } = UtilityDueDateRuleType.DaysAfterBill;
+    public DateTime? UtilityStartDate { get; set; }
     public int? DueDayOfMonth { get; set; }
     public int? DueInDays { get; set; }
     public decimal? DefaultRate { get; set; }
@@ -21,8 +22,6 @@ public class UtilityCustomer
     public Room? Room { get; set; }
     public Tenant? Tenant { get; set; }
     public UtilityType? UtilityCategory { get; set; }
-    public ICollection<UtilityMeterReading> MeterReadings { get; set; } = new List<UtilityMeterReading>();
     public ICollection<UtilityBill> Bills { get; set; } = new List<UtilityBill>();
-    public ICollection<UtilityCustomerRate> Rates { get; set; } = new List<UtilityCustomerRate>();
     public ICollection<UtilityCustomerCredit> Credits { get; set; } = new List<UtilityCustomerCredit>();
 }

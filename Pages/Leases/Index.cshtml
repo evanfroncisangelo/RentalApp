@@ -30,8 +30,8 @@
                     <td>@item.TenantName</td>
                     <td>@item.UnitNumber</td>
                     <td>@item.RoomNumber</td>
-                    <td>@item.StartDate.ToString("yyyy-MM-dd")</td>
-                    <td>@(item.EndDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>@item.StartDate.ToString("MMM-dd-yyyy")</td>
+                    <td>@(item.EndDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
                     <td>@item.MonthlyRent.ToString("N2")</td>
                     <td>@item.Status</td>
                     <td class="text-end">

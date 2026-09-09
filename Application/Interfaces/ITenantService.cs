@@ -9,4 +9,5 @@ public interface ITenantService
     Task<TenantDto> CreateAsync(CreateTenantRequestDto request, CancellationToken cancellationToken = default);
     Task<TenantDto> UpdateAsync(int id, UpdateTenantRequestDto request, CancellationToken cancellationToken = default);
     Task DeactivateAsync(int id, CancellationToken cancellationToken = default);
+    Task ReactivateAsync(int id, CancellationToken cancellationToken = default);
 }

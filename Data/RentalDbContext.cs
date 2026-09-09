@@ -18,15 +18,10 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<UtilityType> UtilityTypes => Set<UtilityType>();
     public DbSet<UtilityCustomer> UtilityCustomers => Set<UtilityCustomer>();
-    public DbSet<UtilityCustomerRate> UtilityCustomerRates => Set<UtilityCustomerRate>();
-    public DbSet<UtilityMeterReading> UtilityMeterReadings => Set<UtilityMeterReading>();
     public DbSet<UtilityBill> UtilityBills => Set<UtilityBill>();
     public DbSet<UtilityBillPayment> UtilityBillPayments => Set<UtilityBillPayment>();
     public DbSet<UtilityCustomerCredit> UtilityCustomerCredits => Set<UtilityCustomerCredit>();
-    public DbSet<UtilityBillResponsibility> UtilityBillResponsibilities => Set<UtilityBillResponsibility>();
-    public DbSet<UtilityRecalculationBatch> UtilityRecalculationBatches => Set<UtilityRecalculationBatch>();
     public DbSet<UtilityAuditLog> UtilityAuditLogs => Set<UtilityAuditLog>();
-    public DbSet<UtilityBillingPeriodLock> UtilityBillingPeriodLocks => Set<UtilityBillingPeriodLock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,7 +51,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
 
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Address).HasMaxLength(500).IsRequired();
-            entity.Property(x => x.Description).HasMaxLength(1000);
             entity.Property(x => x.IsActive).IsRequired();
             entity.Property(x => x.CreatedAt).IsRequired();
             entity.Property(x => x.UpdatedAt).IsRequired();
@@ -70,7 +64,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.HasIndex(x => x.Status);
 
             entity.Property(x => x.UnitNumber).HasMaxLength(50).IsRequired();
-            entity.Property(x => x.Description).HasMaxLength(1000);
             entity.Property(x => x.MonthlyRent).HasColumnType("decimal(18,2)").IsRequired();
             entity.Property(x => x.Status).IsRequired();
             entity.Property(x => x.IsActive).IsRequired();
@@ -112,6 +105,9 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.Property(x => x.ContactNumber).HasMaxLength(30);
             entity.Property(x => x.Email).HasMaxLength(256);
             entity.Property(x => x.Address).HasMaxLength(500);
+            entity.Property(x => x.UnitId);
+            entity.Property(x => x.UnitNumber).HasMaxLength(50);
+            entity.Property(x => x.RoomNumber).HasMaxLength(50);
             entity.Property(x => x.Notes).HasMaxLength(2000);
             entity.Property(x => x.IsActive).IsRequired();
             entity.Property(x => x.CreatedAt).IsRequired();
@@ -171,6 +167,7 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
 
             entity.Property(x => x.Amount).HasColumnType("decimal(18,2)").IsRequired();
             entity.Property(x => x.PaymentDate).IsRequired();
+            entity.Property(x => x.PaymentType).IsRequired();
             entity.Property(x => x.PaymentMethod).IsRequired();
             entity.Property(x => x.ReferenceNumber).HasMaxLength(100);
             entity.Property(x => x.Notes).HasMaxLength(1000);
@@ -200,7 +197,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.HasIndex(x => x.PropertyId);
             entity.HasIndex(x => x.CategoryId);
 
-            entity.Property(x => x.Description).HasMaxLength(500).IsRequired();
             entity.Property(x => x.Amount).HasColumnType("decimal(18,2)").IsRequired();
             entity.Property(x => x.ExpenseDate).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(1000);
@@ -297,6 +293,7 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.CustomerType).IsRequired();
             entity.Property(x => x.DueDateRuleType).IsRequired();
+            entity.Property(x => x.UtilityStartDate);
             entity.Property(x => x.DueDayOfMonth);
             entity.Property(x => x.DueInDays);
             entity.Property(x => x.DefaultRate).HasColumnType("decimal(18,4)");
@@ -330,72 +327,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             });
         });
 
-        modelBuilder.Entity<UtilityCustomerRate>(entity =>
-        {
-            entity.ToTable("UtilityCustomerRates");
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UtilityCustomerId, x.UtilityTypeId, x.BillingPeriod }).IsUnique();
-
-            entity.Property(x => x.BillingPeriod).HasMaxLength(7).IsRequired();
-            entity.Property(x => x.Rate).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.IsLocked).IsRequired();
-            entity.Property(x => x.CreatedAt).IsRequired();
-            entity.Property(x => x.UpdatedAt).IsRequired();
-
-            entity.HasOne(x => x.UtilityCustomer)
-                .WithMany(x => x.Rates)
-                .HasForeignKey(x => x.UtilityCustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.UtilityType)
-                .WithMany(x => x.CustomerRates)
-                .HasForeignKey(x => x.UtilityTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_UtilityCustomerRates_Rate_NonNegative", "Rate >= 0");
-                t.HasCheckConstraint("CK_UtilityCustomerRates_BillingPeriod_Length", "length(BillingPeriod) = 7");
-            });
-        });
-
-        modelBuilder.Entity<UtilityMeterReading>(entity =>
-        {
-            entity.ToTable("UtilityMeterReadings");
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UtilityCustomerId, x.UtilityTypeId, x.ReadingDate }).IsUnique();
-
-            entity.Property(x => x.ReadingDate).IsRequired();
-            entity.Property(x => x.ReadingValue).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.PreviousReadingValue).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.Consumption).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.IsBackdated).IsRequired();
-            entity.Property(x => x.CreatedAt).IsRequired();
-            entity.Property(x => x.UpdatedAt).IsRequired();
-
-            entity.HasOne(x => x.UtilityCustomer)
-                .WithMany(x => x.MeterReadings)
-                .HasForeignKey(x => x.UtilityCustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.UtilityType)
-                .WithMany(x => x.MeterReadings)
-                .HasForeignKey(x => x.UtilityTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.RecalculationBatch)
-                .WithMany(x => x.RecalculatedReadings)
-                .HasForeignKey(x => x.RecalculationBatchId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_UtilityMeterReadings_Reading_NonNegative", "ReadingValue >= 0");
-                t.HasCheckConstraint("CK_UtilityMeterReadings_PreviousReading_NonNegative", "PreviousReadingValue >= 0");
-                t.HasCheckConstraint("CK_UtilityMeterReadings_Consumption_NonNegative", "Consumption >= 0");
-            });
-        });
 
         modelBuilder.Entity<UtilityBill>(entity =>
         {
@@ -406,14 +337,9 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.HasIndex(x => x.DueDate);
 
             entity.Property(x => x.BillingPeriod).HasMaxLength(7).IsRequired();
-            entity.Property(x => x.PreviousReading).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.CurrentReading).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.Consumption).HasColumnType("decimal(18,4)").IsRequired();
-            entity.Property(x => x.Rate).HasColumnType("decimal(18,4)").IsRequired();
             entity.Property(x => x.Amount).HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(x => x.DueDate).IsRequired();
+            entity.Property(x => x.DueDate);
             entity.Property(x => x.Status).IsRequired();
-            entity.Property(x => x.IsRecalculated).IsRequired();
             entity.Property(x => x.Version).IsRequired();
             entity.Property(x => x.CreatedAt).IsRequired();
             entity.Property(x => x.UpdatedAt).IsRequired();
@@ -428,23 +354,9 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
                 .HasForeignKey(x => x.UtilityTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(x => x.CreatedFromReading)
-                .WithMany(x => x.UtilityBills)
-                .HasForeignKey(x => x.CreatedFromReadingId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
-            entity.HasOne(x => x.RecalculationBatch)
-                .WithMany(x => x.RecalculatedBills)
-                .HasForeignKey(x => x.RecalculationBatchId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
             entity.ToTable(t =>
             {
                 t.HasCheckConstraint("CK_UtilityBills_Amount_NonNegative", "Amount >= 0");
-                t.HasCheckConstraint("CK_UtilityBills_Rate_NonNegative", "Rate >= 0");
-                t.HasCheckConstraint("CK_UtilityBills_Consumption_NonNegative", "Consumption >= 0");
                 t.HasCheckConstraint("CK_UtilityBills_BillingPeriod_Length", "length(BillingPeriod) = 7");
             });
         });
@@ -501,70 +413,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
                 .IsRequired(false);
         });
 
-        modelBuilder.Entity<UtilityBillResponsibility>(entity =>
-        {
-            entity.ToTable("UtilityBillResponsibilities");
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UtilityBillId, x.TenantId, x.FromDate, x.ToDate }).IsUnique();
-
-            entity.Property(x => x.FromDate).IsRequired();
-            entity.Property(x => x.ToDate).IsRequired();
-            entity.Property(x => x.DaysCovered).IsRequired();
-            entity.Property(x => x.PercentageShare).HasColumnType("decimal(9,6)").IsRequired();
-            entity.Property(x => x.AmountShare).HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(x => x.CreatedAt).IsRequired();
-            entity.Property(x => x.UpdatedAt).IsRequired();
-
-            entity.HasOne(x => x.UtilityBill)
-                .WithMany(x => x.Responsibilities)
-                .HasForeignKey(x => x.UtilityBillId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(x => x.Tenant)
-                .WithMany()
-                .HasForeignKey(x => x.TenantId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_UtilityBillResponsibilities_DaysCovered_NonNegative", "DaysCovered >= 0");
-                t.HasCheckConstraint("CK_UtilityBillResponsibilities_Percentage_NonNegative", "PercentageShare >= 0");
-                t.HasCheckConstraint("CK_UtilityBillResponsibilities_AmountShare_NonNegative", "AmountShare >= 0");
-            });
-        });
-
-        modelBuilder.Entity<UtilityRecalculationBatch>(entity =>
-        {
-            entity.ToTable("UtilityRecalculationBatches");
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UtilityCustomerId, x.UtilityTypeId, x.StartedAt });
-
-            entity.Property(x => x.Status).IsRequired();
-            entity.Property(x => x.StartedAt).IsRequired();
-            entity.Property(x => x.Summary);
-
-            entity.HasOne(x => x.UtilityCustomer)
-                .WithMany()
-                .HasForeignKey(x => x.UtilityCustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.UtilityType)
-                .WithMany(x => x.RecalculationBatches)
-                .HasForeignKey(x => x.UtilityTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.TriggerReading)
-                .WithMany()
-                .HasForeignKey(x => x.TriggerReadingId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.RequestedByUser)
-                .WithMany()
-                .HasForeignKey(x => x.RequestedByUserId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-        });
 
         modelBuilder.Entity<UtilityAuditLog>(entity =>
         {
@@ -580,33 +428,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.Property(x => x.PerformedAt).IsRequired();
         });
 
-        modelBuilder.Entity<UtilityBillingPeriodLock>(entity =>
-        {
-            entity.ToTable("UtilityBillingPeriodLocks");
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UtilityTypeId, x.UtilityCustomerId, x.BillingPeriod }).IsUnique();
 
-            entity.Property(x => x.BillingPeriod).HasMaxLength(7).IsRequired();
-            entity.Property(x => x.IsLocked).IsRequired();
-            entity.Property(x => x.Notes).HasMaxLength(1000);
-            entity.Property(x => x.CreatedAt).IsRequired();
-            entity.Property(x => x.UpdatedAt).IsRequired();
-
-            entity.HasOne(x => x.UtilityType)
-                .WithMany()
-                .HasForeignKey(x => x.UtilityTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.UtilityCustomer)
-                .WithMany()
-                .HasForeignKey(x => x.UtilityCustomerId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_UtilityBillingPeriodLocks_BillingPeriod_Length", "length(BillingPeriod) = 7");
-            });
-        });
     }
 }

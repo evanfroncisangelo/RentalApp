@@ -50,10 +50,7 @@ public class FinancialReportService(RentalDbContext dbContext) : IFinancialRepor
             .Select(x => x.Amount - x.Payments.Where(p => !p.IsVoided).Sum(p => p.Amount))
             .SumAsync(cancellationToken);
 
-        var totalUtilityConsumption = await dbContext.UtilityBills
-            .AsNoTracking()
-            .Where(x => x.BillingPeriod == periodKey)
-            .SumAsync(x => (decimal?)x.Consumption, cancellationToken) ?? 0m;
+        var totalUtilityConsumption = 0m;
 
         var outstanding = expectedRent > collectedRent ? expectedRent - collectedRent : 0m;
 

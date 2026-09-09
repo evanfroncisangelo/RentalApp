@@ -30,7 +30,14 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             .ThenBy(x => x.UnitNumber)
             .ToListAsync(cancellationToken);
 
-        return units.Select(ToDto).ToList();
+        var activeTenantCountsByUnit = await dbContext.Tenants
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.UnitId.HasValue)
+            .GroupBy(x => x.UnitId!.Value)
+            .Select(g => new { UnitId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.UnitId, x => x.Count, cancellationToken);
+
+        return units.Select(x => ToDto(x, activeTenantCountsByUnit)).ToList();
     }
 
     public async Task<UnitDto> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -43,7 +50,16 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppNotFoundException("Unit not found.");
 
-        return ToDto(entity);
+        var assignedCount = await dbContext.Tenants
+            .AsNoTracking()
+            .CountAsync(x => x.IsActive && x.UnitId == entity.Id, cancellationToken);
+
+        var tenantCounts = new Dictionary<int, int>
+        {
+            [entity.Id] = assignedCount
+        };
+
+        return ToDto(entity, tenantCounts);
     }
 
     public async Task<UnitDto> CreateAsync(CreateUnitRequestDto request, CancellationToken cancellationToken = default)
@@ -54,7 +70,6 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
         {
             PropertyId = request.PropertyId,
             UnitNumber = request.UnitNumber.Trim(),
-            Description = request.Description?.Trim(),
             MonthlyRent = request.MonthlyRent,
             Status = request.Status,
             IsActive = true,
@@ -87,7 +102,6 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
         entity.PropertyId = request.PropertyId;
         entity.UnitNumber = request.UnitNumber.Trim();
-        entity.Description = request.Description?.Trim();
         entity.MonthlyRent = request.MonthlyRent;
         entity.Status = request.Status;
         entity.UpdatedAt = DateTime.UtcNow;
@@ -187,19 +201,24 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
         return rooms;
     }
 
-    private static UnitDto ToDto(Unit entity)
+    private static UnitDto ToDto(Unit entity, IReadOnlyDictionary<int, int> activeTenantCountsByUnit)
     {
-        var activeLeasesByRoom = entity.Leases
-            .Where(x => x.Status == LeaseStatus.Active)
-            .GroupBy(x => x.RoomId)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        var roomStatuses = entity.Rooms
+        var rooms = entity.Rooms
             .Where(x => x.IsActive)
             .OrderBy(x => x.RoomNumber)
+            .ToList();
+
+        var assignedTenants = activeTenantCountsByUnit.TryGetValue(entity.Id, out var unitAssignedCount)
+            ? unitAssignedCount
+            : 0;
+
+        var remainingAssigned = assignedTenants;
+        var roomStatuses = rooms
             .Select(room =>
             {
-                var occupiedCount = activeLeasesByRoom.TryGetValue(room.Id, out var count) ? count : 0;
+                var occupiedCount = Math.Min(room.MaxCapacity, Math.Max(remainingAssigned, 0));
+                remainingAssigned -= occupiedCount;
+
                 var availableSlots = Math.Max(room.MaxCapacity - occupiedCount, 0);
 
                 return new UnitRoomStatusDto
@@ -214,8 +233,10 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             })
             .ToList();
 
-        var allRoomsOccupied = roomStatuses.Count > 0 && roomStatuses.All(x => x.AvailableSlots == 0);
-        var occupancyDerivedStatus = allRoomsOccupied ? UnitStatus.Occupied : UnitStatus.Available;
+        var totalCapacity = roomStatuses.Sum(x => x.MaxCapacity);
+        var occupancyDerivedStatus = totalCapacity > 0 && assignedTenants >= totalCapacity
+            ? UnitStatus.Occupied
+            : UnitStatus.Available;
 
         var mappedStatus = entity.Status is UnitStatus.Maintenance or UnitStatus.Inactive
             ? entity.Status
@@ -227,10 +248,9 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             PropertyId = entity.PropertyId,
             PropertyName = entity.Property?.Name ?? string.Empty,
             UnitNumber = entity.UnitNumber,
-            Description = entity.Description,
             MonthlyRent = entity.MonthlyRent,
             RoomCount = roomStatuses.Count,
-            RoomMaxCapacity = roomStatuses.OrderBy(x => x.RoomNumber).Select(x => x.MaxCapacity).FirstOrDefault(),
+            RoomMaxCapacity = totalCapacity,
             Status = mappedStatus,
             IsActive = entity.IsActive,
             RoomStatuses = roomStatuses

@@ -32,11 +32,6 @@ namespace RentalApp.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("ExpenseDate")
                         .HasColumnType("TEXT");
 
@@ -255,6 +250,9 @@ namespace RentalApp.Migrations
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("PaymentType")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ReferenceNumber")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
@@ -290,10 +288,6 @@ namespace RentalApp.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
@@ -389,6 +383,17 @@ namespace RentalApp.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RoomNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("UnitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UnitNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -406,10 +411,6 @@ namespace RentalApp.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
@@ -547,31 +548,10 @@ namespace RentalApp.Migrations
                         .HasMaxLength(7)
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("Consumption")
-                        .HasColumnType("decimal(18,4)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CreatedFromReadingId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("CurrentReading")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime>("DueDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRecalculated")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("PreviousReading")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("Rate")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("RecalculationBatchId")
+                    b.Property<DateTime?>("DueDate")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
@@ -587,18 +567,12 @@ namespace RentalApp.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<byte[]>("Version")
-                        .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("BLOB");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedFromReadingId");
-
                     b.HasIndex("DueDate");
-
-                    b.HasIndex("RecalculationBatchId");
 
                     b.HasIndex("Status");
 
@@ -612,10 +586,6 @@ namespace RentalApp.Migrations
                             t.HasCheckConstraint("CK_UtilityBills_Amount_NonNegative", "Amount >= 0");
 
                             t.HasCheckConstraint("CK_UtilityBills_BillingPeriod_Length", "length(BillingPeriod) = 7");
-
-                            t.HasCheckConstraint("CK_UtilityBills_Consumption_NonNegative", "Consumption >= 0");
-
-                            t.HasCheckConstraint("CK_UtilityBills_Rate_NonNegative", "Rate >= 0");
                         });
                 });
 
@@ -666,99 +636,6 @@ namespace RentalApp.Migrations
                         });
                 });
 
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBillResponsibility", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("AmountShare")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("DaysCovered")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("FromDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("PercentageShare")
-                        .HasColumnType("decimal(9,6)");
-
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("ToDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UtilityBillId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("UtilityBillId", "TenantId", "FromDate", "ToDate")
-                        .IsUnique();
-
-                    b.ToTable("UtilityBillResponsibilities", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_UtilityBillResponsibilities_AmountShare_NonNegative", "AmountShare >= 0");
-
-                            t.HasCheckConstraint("CK_UtilityBillResponsibilities_DaysCovered_NonNegative", "DaysCovered >= 0");
-
-                            t.HasCheckConstraint("CK_UtilityBillResponsibilities_Percentage_NonNegative", "PercentageShare >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBillingPeriodLock", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("BillingPeriod")
-                        .IsRequired()
-                        .HasMaxLength(7)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsLocked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("UtilityCustomerId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UtilityTypeId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UtilityCustomerId");
-
-                    b.HasIndex("UtilityTypeId", "UtilityCustomerId", "BillingPeriod")
-                        .IsUnique();
-
-                    b.ToTable("UtilityBillingPeriodLocks", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_UtilityBillingPeriodLocks_BillingPeriod_Length", "length(BillingPeriod) = 7");
-                        });
-                });
-
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityCustomer", b =>
                 {
                     b.Property<int>("Id")
@@ -802,6 +679,9 @@ namespace RentalApp.Migrations
 
                     b.Property<int?>("UtilityCategoryId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UtilityStartDate")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -865,148 +745,6 @@ namespace RentalApp.Migrations
                     b.HasIndex("UtilityCustomerId", "UtilityTypeId", "OccurredAt");
 
                     b.ToTable("UtilityCustomerCredits", (string)null);
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityCustomerRate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("BillingPeriod")
-                        .IsRequired()
-                        .HasMaxLength(7)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsLocked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Rate")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UtilityCustomerId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UtilityTypeId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UtilityTypeId");
-
-                    b.HasIndex("UtilityCustomerId", "UtilityTypeId", "BillingPeriod")
-                        .IsUnique();
-
-                    b.ToTable("UtilityCustomerRates", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_UtilityCustomerRates_BillingPeriod_Length", "length(BillingPeriod) = 7");
-
-                            t.HasCheckConstraint("CK_UtilityCustomerRates_Rate_NonNegative", "Rate >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityMeterReading", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Consumption")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsBackdated")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("PreviousReadingValue")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime>("ReadingDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("ReadingValue")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid?>("RecalculationBatchId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UtilityCustomerId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UtilityTypeId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecalculationBatchId");
-
-                    b.HasIndex("UtilityTypeId");
-
-                    b.HasIndex("UtilityCustomerId", "UtilityTypeId", "ReadingDate")
-                        .IsUnique();
-
-                    b.ToTable("UtilityMeterReadings", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_UtilityMeterReadings_Consumption_NonNegative", "Consumption >= 0");
-
-                            t.HasCheckConstraint("CK_UtilityMeterReadings_PreviousReading_NonNegative", "PreviousReadingValue >= 0");
-
-                            t.HasCheckConstraint("CK_UtilityMeterReadings_Reading_NonNegative", "ReadingValue >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityRecalculationBatch", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("RequestedByUserId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Summary")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("TriggerReadingId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UtilityCustomerId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UtilityTypeId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RequestedByUserId");
-
-                    b.HasIndex("TriggerReadingId");
-
-                    b.HasIndex("UtilityTypeId");
-
-                    b.HasIndex("UtilityCustomerId", "UtilityTypeId", "StartedAt");
-
-                    b.ToTable("UtilityRecalculationBatches", (string)null);
                 });
 
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityType", b =>
@@ -1187,16 +925,6 @@ namespace RentalApp.Migrations
 
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBill", b =>
                 {
-                    b.HasOne("RentalApp.Domain.Entities.UtilityMeterReading", "CreatedFromReading")
-                        .WithMany("UtilityBills")
-                        .HasForeignKey("CreatedFromReadingId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityRecalculationBatch", "RecalculationBatch")
-                        .WithMany("RecalculatedBills")
-                        .HasForeignKey("RecalculationBatchId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("RentalApp.Domain.Entities.UtilityCustomer", "UtilityCustomer")
                         .WithMany("Bills")
                         .HasForeignKey("UtilityCustomerId")
@@ -1208,10 +936,6 @@ namespace RentalApp.Migrations
                         .HasForeignKey("UtilityTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("CreatedFromReading");
-
-                    b.Navigation("RecalculationBatch");
 
                     b.Navigation("UtilityCustomer");
 
@@ -1227,42 +951,6 @@ namespace RentalApp.Migrations
                         .IsRequired();
 
                     b.Navigation("UtilityBill");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBillResponsibility", b =>
-                {
-                    b.HasOne("RentalApp.Domain.Entities.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityBill", "UtilityBill")
-                        .WithMany("Responsibilities")
-                        .HasForeignKey("UtilityBillId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
-
-                    b.Navigation("UtilityBill");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBillingPeriodLock", b =>
-                {
-                    b.HasOne("RentalApp.Domain.Entities.UtilityCustomer", "UtilityCustomer")
-                        .WithMany()
-                        .HasForeignKey("UtilityCustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityType", "UtilityType")
-                        .WithMany()
-                        .HasForeignKey("UtilityTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("UtilityCustomer");
-
-                    b.Navigation("UtilityType");
                 });
 
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityCustomer", b =>
@@ -1309,85 +997,6 @@ namespace RentalApp.Migrations
                         .IsRequired();
 
                     b.Navigation("SourcePayment");
-
-                    b.Navigation("UtilityCustomer");
-
-                    b.Navigation("UtilityType");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityCustomerRate", b =>
-                {
-                    b.HasOne("RentalApp.Domain.Entities.UtilityCustomer", "UtilityCustomer")
-                        .WithMany("Rates")
-                        .HasForeignKey("UtilityCustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityType", "UtilityType")
-                        .WithMany("CustomerRates")
-                        .HasForeignKey("UtilityTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("UtilityCustomer");
-
-                    b.Navigation("UtilityType");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityMeterReading", b =>
-                {
-                    b.HasOne("RentalApp.Domain.Entities.UtilityRecalculationBatch", "RecalculationBatch")
-                        .WithMany("RecalculatedReadings")
-                        .HasForeignKey("RecalculationBatchId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityCustomer", "UtilityCustomer")
-                        .WithMany("MeterReadings")
-                        .HasForeignKey("UtilityCustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityType", "UtilityType")
-                        .WithMany("MeterReadings")
-                        .HasForeignKey("UtilityTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("RecalculationBatch");
-
-                    b.Navigation("UtilityCustomer");
-
-                    b.Navigation("UtilityType");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityRecalculationBatch", b =>
-                {
-                    b.HasOne("RentalApp.Domain.Entities.User", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityMeterReading", "TriggerReading")
-                        .WithMany()
-                        .HasForeignKey("TriggerReadingId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityCustomer", "UtilityCustomer")
-                        .WithMany()
-                        .HasForeignKey("UtilityCustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RentalApp.Domain.Entities.UtilityType", "UtilityType")
-                        .WithMany("RecalculationBatches")
-                        .HasForeignKey("UtilityTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("RequestedByUser");
-
-                    b.Navigation("TriggerReading");
 
                     b.Navigation("UtilityCustomer");
 
@@ -1446,8 +1055,6 @@ namespace RentalApp.Migrations
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBill", b =>
                 {
                     b.Navigation("Payments");
-
-                    b.Navigation("Responsibilities");
                 });
 
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityBillPayment", b =>
@@ -1460,22 +1067,6 @@ namespace RentalApp.Migrations
                     b.Navigation("Bills");
 
                     b.Navigation("Credits");
-
-                    b.Navigation("MeterReadings");
-
-                    b.Navigation("Rates");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityMeterReading", b =>
-                {
-                    b.Navigation("UtilityBills");
-                });
-
-            modelBuilder.Entity("RentalApp.Domain.Entities.UtilityRecalculationBatch", b =>
-                {
-                    b.Navigation("RecalculatedBills");
-
-                    b.Navigation("RecalculatedReadings");
                 });
 
             modelBuilder.Entity("RentalApp.Domain.Entities.UtilityType", b =>
@@ -1483,12 +1074,6 @@ namespace RentalApp.Migrations
                     b.Navigation("Bills");
 
                     b.Navigation("CustomerCredits");
-
-                    b.Navigation("CustomerRates");
-
-                    b.Navigation("MeterReadings");
-
-                    b.Navigation("RecalculationBatches");
                 });
 #pragma warning restore 612, 618
         }

@@ -45,11 +45,6 @@
         <select asp-for="Input.Status" asp-items="Model.StatusOptions" class="form-select"></select>
     </div>
 
-    <div class="mb-3">
-        <label asp-for="Input.Description" class="form-label"></label>
-        <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
-    </div>
-
     <div class="d-flex justify-content-end gap-2">
         <a asp-page="/Units/Index" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save Changes</button>

@@ -35,8 +35,7 @@
                 <th>Period</th>
                 <th>Customer</th>
                 <th>Type</th>
-                <th>Consumption</th>
-                <th>Rate</th>
+                <th>Due Date</th>
                 <th>Amount</th>
                 <th>Paid</th>
                 <th>Balance</th>
@@ -48,7 +47,7 @@
             @if (Model.PagedItems.Items.Count == 0)
             {
                 <tr>
-                    <td colspan="10">
+                    <td colspan="11">
                         <div class="empty-state">
                             <span class="empty-state-title">No utility bills found</span>
                             There are no utility bills for the selected filters.
@@ -64,19 +63,63 @@
                         <td>@bill.BillingPeriod</td>
                         <td>@bill.UtilityCustomerName</td>
                         <td>@bill.UtilityTypeName</td>
-                        <td>@bill.Consumption.ToString("N4")</td>
-                        <td>@bill.Rate.ToString("N4")</td>
+                        <td>@(bill.DueDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
                         <td>@bill.Amount.ToString("N2")</td>
                         <td>@bill.TotalPaid.ToString("N2")</td>
                         <td>@bill.Balance.ToString("N2")</td>
                         <td>@bill.Status</td>
                         <td class="text-end">
-                            <button type="button" class="btn btn-sm btn-outline-primary open-payment-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Record Payment</button>
-                            <button type="button" class="btn btn-sm btn-outline-success open-apply-credit-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Apply Credit</button>
-                            @if (bill.LastPaymentId.HasValue)
-                            {
-                                <button type="button" class="btn btn-sm btn-outline-danger open-void-payment-modal-btn" data-payment-id="@bill.LastPaymentId.Value">Void Last Payment</button>
-                            }
+                            <div class="d-inline-flex gap-1 justify-content-end flex-wrap">
+                                <button type="button" class="btn btn-sm btn-outline-secondary view-paid-payments-btn" data-bs-toggle="collapse" data-bs-target="#paid-payments-@bill.Id" aria-expanded="@(Model.ExpandedBillId == bill.Id ? "true" : "false")" aria-controls="paid-payments-@bill.Id">View</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary open-payment-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Record Payment</button>
+                                <button type="button" class="btn btn-sm btn-outline-success open-apply-credit-modal-btn" data-bill='@Html.Raw(JsonSerializer.Serialize(bill))'>Apply Credit</button>
+                                @if (bill.LastPaymentId.HasValue)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger open-void-payment-modal-btn" data-payment-id="@bill.LastPaymentId.Value">Void Last Payment</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="collapse @(Model.ExpandedBillId == bill.Id ? "show" : null)" id="paid-payments-@bill.Id" data-bill-id="@bill.Id">
+                        <td colspan="11" class="bg-light">
+                            <div class="p-2">
+                                <strong class="d-block mb-2">Paid Payments</strong>
+                                @{
+                                    var paidHistory = Model.PaidPaymentsByBillId.TryGetValue(bill.Id, out var payments) ? payments : [];
+                                }
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered align-middle mb-0 bg-white">
+                                        <thead>
+                                            <tr>
+                                                <th>Payment Date</th>
+                                                <th>Amount</th>
+                                                <th>Reference</th>
+                                                <th>Notes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (paidHistory.Count == 0)
+                                            {
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted">No paid payments yet.</td>
+                                                </tr>
+                                            }
+                                            else
+                                            {
+                                                foreach (var payment in paidHistory)
+                                                {
+                                                    <tr>
+                                                        <td>@payment.PaymentDate.ToString("MMM-dd-yyyy")</td>
+                                                        <td>@payment.Amount.ToString("N2")</td>
+                                                        <td>@(string.IsNullOrWhiteSpace(payment.ReferenceNumber) ? "-" : payment.ReferenceNumber)</td>
+                                                        <td>@(string.IsNullOrWhiteSpace(payment.Notes) ? "-" : payment.Notes)</td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 }
@@ -95,7 +138,8 @@
     {
         ["UtilityCustomerId"] = Model.UtilityCustomerId?.ToString() ?? string.Empty,
         ["UtilityTypeId"] = Model.UtilityTypeId?.ToString() ?? string.Empty,
-        ["BillingPeriod"] = Model.BillingPeriod ?? string.Empty
+        ["BillingPeriod"] = Model.BillingPeriod ?? string.Empty,
+        ["ExpandedBillId"] = Model.ExpandedBillId?.ToString() ?? string.Empty
     }
 })" />
 
@@ -196,6 +240,21 @@
         const paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
         const applyCreditModal = new bootstrap.Modal(document.getElementById('applyCreditModal'));
         const voidPaymentModal = new bootstrap.Modal(document.getElementById('voidPaymentModal'));
+
+        document.querySelectorAll('.view-paid-payments-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const container = this.closest('tr')?.nextElementSibling;
+                const billId = container?.dataset?.billId;
+                if (!billId) {
+                    return;
+                }
+
+                const url = new URL(window.location.href);
+                const current = url.searchParams.get('ExpandedBillId');
+                url.searchParams.set('ExpandedBillId', current === billId ? '' : billId);
+                history.replaceState({}, '', url);
+            });
+        });
 
         document.querySelectorAll('.open-payment-modal-btn').forEach(button => {
             button.addEventListener('click', function () {

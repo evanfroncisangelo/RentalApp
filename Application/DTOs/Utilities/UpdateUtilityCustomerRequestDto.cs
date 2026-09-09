@@ -9,6 +9,7 @@ public class UpdateUtilityCustomerRequestDto
     public int? UtilityCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public UtilityCustomerType CustomerType { get; set; }
+    public DateTime? UtilityStartDate { get; set; }
     public decimal? AmountToPay { get; set; }
     public int? DueDayOfMonth { get; set; }
 }

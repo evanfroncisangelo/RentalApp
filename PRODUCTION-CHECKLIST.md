@@ -1,0 +1,27 @@
+# RentalApp Production Checklist
+
+- [ ] Production environment configured (`ASPNETCORE_ENVIRONMENT=Production`)
+- [ ] HTTPS verified on deployed MonsterASP URL
+- [ ] HSTS verified in Production responses
+- [ ] Production error handling verified (no stack traces/details)
+- [ ] Swagger disabled or protected in Production
+- [ ] Authentication verified
+- [ ] Authorization verified
+- [ ] CSRF verified for browser state-changing requests
+- [ ] Input validation verified
+- [ ] Upload validation verified (if upload features are enabled)
+- [ ] Private files protected
+- [ ] SQLite database outside `wwwroot`
+- [ ] SQLite backup process verified
+- [ ] SQLite restore process tested
+- [ ] Database migrations verified
+- [ ] No production database committed to Git
+- [ ] No secrets in Git
+- [ ] GitHub repository secrets configured
+- [ ] GitHub Actions workflow succeeds
+- [ ] Release build succeeds
+- [ ] Tests succeed
+- [ ] Production deployment succeeds
+- [ ] `/health` endpoint works
+- [ ] Logs reviewed: no secrets/token leakage
+- [ ] Rollback procedure documented and tested

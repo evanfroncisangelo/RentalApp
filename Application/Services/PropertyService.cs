@@ -41,7 +41,6 @@ public class PropertyService(RentalDbContext dbContext) : IPropertyService
         {
             Name = request.Name.Trim(),
             Address = request.Address.Trim(),
-            Description = request.Description?.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -61,7 +60,6 @@ public class PropertyService(RentalDbContext dbContext) : IPropertyService
 
         entity.Name = request.Name.Trim();
         entity.Address = request.Address.Trim();
-        entity.Description = request.Description?.Trim();
         entity.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -85,7 +83,6 @@ public class PropertyService(RentalDbContext dbContext) : IPropertyService
         Id = entity.Id,
         Name = entity.Name,
         Address = entity.Address,
-        Description = entity.Description,
         IsActive = entity.IsActive,
         CreatedAt = entity.CreatedAt,
         UpdatedAt = entity.UpdatedAt

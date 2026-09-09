@@ -7,30 +7,21 @@ using RentalApp.Application.Common;
 using RentalApp.Application.DTOs.Leases;
 using RentalApp.Application.DTOs.Payments;
 using RentalApp.Application.DTOs.Properties;
-using RentalApp.Application.DTOs.Tenants;
 using RentalApp.Application.DTOs.Units;
 using RentalApp.Application.Exceptions;
 using RentalApp.Application.Interfaces;
-using RentalApp.Data;
 using RentalApp.Domain.Enums;
 
 namespace RentalApp.Pages.ApartmentTenants;
 
 [Authorize]
 public class IndexModel(
-    ITenantService tenantService,
     ILeaseService leaseService,
     IPaymentService paymentService,
     IUnitService unitService,
     IPropertyService propertyService,
-    RentalDbContext dbContext) : PageModel
+    ITenantService tenantService) : PageModel
 {
-    [BindProperty(SupportsGet = true)]
-    public string? Search { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public int PageNumber { get; set; } = 1;
-
     [BindProperty(SupportsGet = true)]
     public string? PropertySearch { get; set; }
 
@@ -38,54 +29,53 @@ public class IndexModel(
     public int PropertiesPageNumber { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
-    public int? ExpandedTenantId { get; set; }
+    public int PageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int DepositsPageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int? ExpandedRoomId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int? ExpandedDepositUnitId { get; set; }
 
     [BindProperty]
-    public TenantInputModel TenantInput { get; set; } = new();
+    public AddPaymentInputModel AddPaymentInput { get; set; } = new();
 
     [BindProperty]
-    public ApartmentInputModel ApartmentInput { get; set; } = new();
+    public EditPaymentInputModel EditPaymentInput { get; set; } = new();
 
     [BindProperty]
-    public AddTenantPaymentInputModel AddTenantPaymentInput { get; set; } = new();
+    public AddDepositInputModel AddDepositInput { get; set; } = new();
 
     public string? ErrorMessage { get; private set; }
-    public bool ShowAddTenantModal { get; private set; }
-    public bool ShowAddTenantPaymentModal { get; private set; }
-    public int PaymentModalTenantId { get; private set; }
-    public int PaymentModalLeaseId { get; private set; }
+    public bool ShowAddPaymentModal { get; private set; }
+    public bool ShowEditPaymentModal { get; private set; }
 
     public PagedResult<PropertyDto> PagedProperties { get; private set; } = new();
     public Dictionary<int, IReadOnlyList<UnitDto>> UnitsByPropertyId { get; private set; } = [];
 
-    public PagedResult<TenantDto> PagedTenants { get; private set; } = new();
-    public Dictionary<int, LeaseDto> ActiveApartmentByTenantId { get; private set; } = [];
-    public Dictionary<int, IReadOnlyList<PaymentDto>> PaymentHistoryByTenantId { get; private set; } = [];
-
-    public List<SelectListItem> UnitOptions { get; private set; } = [];
-    public Dictionary<int, IReadOnlyList<LeaseDto>> PaymentLeaseOptionsByTenantId { get; private set; } = [];
-    public Dictionary<int, Dictionary<int, decimal>> PaymentLeaseRentMapByTenantId { get; private set; } = [];
-    public Dictionary<int, IReadOnlyList<UnpaidLeaseItemViewModel>> UnpaidLeasesByTenantId { get; private set; } = [];
+    public PagedResult<PaymentRoomRowViewModel> PagedPaymentRows { get; private set; } = new();
+    public Dictionary<int, IReadOnlyList<PaymentHistoryItemViewModel>> PaymentHistoryByRoomId { get; private set; } = [];
+    public PagedResult<DepositRowViewModel> PagedDepositRows { get; private set; } = new();
+    public Dictionary<int, IReadOnlyList<DepositHistoryItemViewModel>> DepositHistoryByUnitId { get; private set; } = [];
     public List<SelectListItem> PaymentMethodOptions { get; private set; } = [];
-    public List<SelectListItem> TenantApartmentRoomOptions { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadPageDataAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostAddTenantApartmentAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostAddPaymentAsync(CancellationToken cancellationToken)
     {
-        await LoadPageDataAsync(cancellationToken, ApartmentInput.UnitId);
-
+        await LoadPageDataAsync(cancellationToken);
         ModelState.Clear();
 
-        var tenantValid = TryValidateModel(TenantInput, nameof(TenantInput));
-        var apartmentValid = TryValidateModel(ApartmentInput, nameof(ApartmentInput));
-
-        if (!tenantValid || !apartmentValid)
+        if (!TryValidateModel(AddPaymentInput, nameof(AddPaymentInput)))
         {
-            ShowAddTenantModal = true;
+            ShowAddPaymentModal = true;
+            ExpandedRoomId = AddPaymentInput.RoomId;
             ErrorMessage = string.Join(" ", ModelState.Values
                 .SelectMany(v => v.Errors)
                 .Select(e => e.ErrorMessage)
@@ -94,80 +84,17 @@ public class IndexModel(
             return Page();
         }
 
-        await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var leases = await leaseService.GetAllAsync(cancellationToken);
+        var selectedLease = leases.FirstOrDefault(x =>
+            x.Id == AddPaymentInput.LeaseId &&
+            x.UnitId == AddPaymentInput.RoomId &&
+            x.Status is LeaseStatus.Active or LeaseStatus.Ended);
+
+        if (selectedLease is null)
         {
-            var tenant = await tenantService.CreateAsync(new CreateTenantRequestDto
-            {
-                FirstName = TenantInput.FirstName,
-                LastName = TenantInput.LastName,
-                ContactNumber = TenantInput.ContactNumber,
-                Email = TenantInput.Email,
-                Address = TenantInput.Address,
-                DateOfBirth = TenantInput.DateOfBirth,
-                Notes = TenantInput.Notes
-            }, cancellationToken);
-
-            await leaseService.CreateAsync(new CreateLeaseRequestDto
-            {
-                TenantId = tenant.Id,
-                UnitId = ApartmentInput.UnitId,
-                RoomId = ApartmentInput.RoomId,
-                StartDate = ApartmentInput.StartDate,
-                EndDate = ApartmentInput.EndDate,
-                MonthlyRent = ApartmentInput.MonthlyRent,
-                SecurityDeposit = ApartmentInput.SecurityDeposit,
-                DueDayOfMonth = ApartmentInput.DueDayOfMonth,
-                Notes = ApartmentInput.Notes
-            }, cancellationToken);
-
-            await tx.CommitAsync(cancellationToken);
-            return RedirectToPage(new
-            {
-                Search,
-                PropertySearch,
-                PropertiesPageNumber,
-                PageNumber = 1,
-                ExpandedTenantId = tenant.Id
-            });
-        }
-        catch (AppValidationException ex)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            ErrorMessage = ex.Message;
-            ShowAddTenantModal = true;
-            return Page();
-        }
-    }
-
-    public async Task<IActionResult> OnPostAddTenantPaymentAsync(CancellationToken cancellationToken)
-    {
-        await LoadPageDataAsync(cancellationToken, ApartmentInput.UnitId);
-
-        ModelState.Clear();
-
-        if (!TryValidateModel(AddTenantPaymentInput, nameof(AddTenantPaymentInput)))
-        {
-            ShowAddTenantPaymentModal = true;
-            PaymentModalTenantId = AddTenantPaymentInput.TenantId;
-            PaymentModalLeaseId = AddTenantPaymentInput.LeaseId;
-            ErrorMessage = string.Join(" ", ModelState.Values
-                .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .Where(m => !string.IsNullOrWhiteSpace(m))
-                .Take(3));
-            return Page();
-        }
-
-        var leaseBelongsToTenant = PaymentLeaseOptionsByTenantId.TryGetValue(AddTenantPaymentInput.TenantId, out var tenantLeases)
-                                  && tenantLeases.Any(x => x.Id == AddTenantPaymentInput.LeaseId);
-
-        if (!leaseBelongsToTenant)
-        {
-            ModelState.AddModelError(string.Empty, "Selected apartment does not belong to this tenant.");
-            ShowAddTenantPaymentModal = true;
-            PaymentModalTenantId = AddTenantPaymentInput.TenantId;
-            PaymentModalLeaseId = AddTenantPaymentInput.LeaseId;
+            ErrorMessage = "Selected unit does not have a valid lease for payment.";
+            ShowAddPaymentModal = true;
+            ExpandedRoomId = AddPaymentInput.RoomId;
             return Page();
         }
 
@@ -175,227 +102,388 @@ public class IndexModel(
         {
             await paymentService.CreateAsync(new CreatePaymentRequestDto
             {
-                LeaseId = AddTenantPaymentInput.LeaseId,
-                Amount = AddTenantPaymentInput.Amount,
-                PaymentDate = AddTenantPaymentInput.PaymentDate,
-                PaymentMethod = AddTenantPaymentInput.PaymentMethod,
-                ReferenceNumber = AddTenantPaymentInput.ReferenceNumber,
-                Notes = AddTenantPaymentInput.Notes
+                LeaseId = selectedLease.Id,
+                Amount = AddPaymentInput.Amount,
+                PaymentDate = AddPaymentInput.PaymentDate,
+                PaymentType = PaymentType.Rent,
+                PaymentMethod = AddPaymentInput.PaymentMethod
             }, cancellationToken);
 
-            return RedirectToPage(new { Search, PageNumber, PropertySearch, PropertiesPageNumber, ExpandedTenantId = AddTenantPaymentInput.TenantId });
+            return RedirectToPage(new
+            {
+                PropertySearch,
+                PropertiesPageNumber,
+                PageNumber,
+                DepositsPageNumber,
+                ExpandedRoomId = AddPaymentInput.RoomId
+            });
         }
         catch (AppValidationException ex)
         {
             ErrorMessage = ex.Message;
-            ShowAddTenantPaymentModal = true;
-            PaymentModalTenantId = AddTenantPaymentInput.TenantId;
-            PaymentModalLeaseId = AddTenantPaymentInput.LeaseId;
+            ShowAddPaymentModal = true;
+            ExpandedRoomId = AddPaymentInput.RoomId;
             return Page();
         }
     }
 
-    private async Task LoadPageDataAsync(CancellationToken cancellationToken, int? tenantApartmentUnitId = null)
+    public async Task<IActionResult> OnPostAddDepositAsync(CancellationToken cancellationToken)
+    {
+        await LoadPageDataAsync(cancellationToken);
+        ModelState.Clear();
+
+        if (!TryValidateModel(AddDepositInput, nameof(AddDepositInput)))
+        {
+            ErrorMessage = string.Join(" ", ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Take(3));
+            return Page();
+        }
+
+        var leases = await leaseService.GetAllAsync(cancellationToken);
+        var selectedLease = leases.FirstOrDefault(x =>
+            x.Id == AddDepositInput.LeaseId &&
+            x.UnitId == AddDepositInput.UnitId &&
+            x.Status is LeaseStatus.Active or LeaseStatus.Ended);
+
+        if (selectedLease is null)
+        {
+            ErrorMessage = "Selected unit does not have a valid lease for deposit payment.";
+            return Page();
+        }
+
+        try
+        {
+            await paymentService.CreateAsync(new CreatePaymentRequestDto
+            {
+                LeaseId = selectedLease.Id,
+                Amount = AddDepositInput.Amount,
+                PaymentDate = AddDepositInput.PaymentDate,
+                PaymentType = PaymentType.Deposit,
+                PaymentMethod = AddDepositInput.PaymentMethod
+            }, cancellationToken);
+
+            return RedirectToPage(new
+            {
+                PropertySearch,
+                PropertiesPageNumber,
+                PageNumber,
+                DepositsPageNumber,
+                ExpandedRoomId,
+                ExpandedDepositUnitId = AddDepositInput.UnitId
+            });
+        }
+        catch (AppValidationException ex)
+        {
+            ErrorMessage = ex.Message;
+            return Page();
+        }
+    }
+
+    public async Task<IActionResult> OnPostEditPaymentAsync(CancellationToken cancellationToken)
+    {
+        await LoadPageDataAsync(cancellationToken);
+        ModelState.Clear();
+
+        if (!TryValidateModel(EditPaymentInput, nameof(EditPaymentInput)))
+        {
+            ShowEditPaymentModal = true;
+            ExpandedRoomId = EditPaymentInput.RoomId;
+            ErrorMessage = string.Join(" ", ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Take(3));
+            return Page();
+        }
+
+        try
+        {
+            await paymentService.UpdateAsync(EditPaymentInput.PaymentId, new UpdatePaymentRequestDto
+            {
+                Amount = EditPaymentInput.Amount,
+                PaymentDate = EditPaymentInput.PaymentDate,
+                PaymentMethod = EditPaymentInput.PaymentMethod,
+                ReferenceNumber = EditPaymentInput.ReferenceNumber,
+                Notes = EditPaymentInput.Notes
+            }, cancellationToken);
+
+            return RedirectToPage(new
+            {
+                PropertySearch,
+                PropertiesPageNumber,
+                PageNumber,
+                DepositsPageNumber,
+                ExpandedRoomId = EditPaymentInput.RoomId
+            });
+        }
+        catch (AppValidationException ex)
+        {
+            ErrorMessage = ex.Message;
+            ShowEditPaymentModal = true;
+            ExpandedRoomId = EditPaymentInput.RoomId;
+            return Page();
+        }
+    }
+
+    private async Task LoadPageDataAsync(CancellationToken cancellationToken)
     {
         var properties = await propertyService.GetAllAsync(PropertySearch, cancellationToken);
-        var tenants = await tenantService.GetAllAsync(Search, cancellationToken);
+        var units = await unitService.GetAllAsync(null, cancellationToken);
         var leases = await leaseService.GetAllAsync(cancellationToken);
         var payments = await paymentService.GetAllAsync(null, cancellationToken);
-        var units = await unitService.GetAllAsync(null, cancellationToken);
+        var tenants = await tenantService.GetAllAsync(null, cancellationToken);
 
         PagedProperties = PagedResult<PropertyDto>.Create(properties, PropertiesPageNumber, 10);
         UnitsByPropertyId = units
             .GroupBy(x => x.PropertyId)
             .ToDictionary(x => x.Key, x => (IReadOnlyList<UnitDto>)x.OrderBy(u => u.UnitNumber).ToList());
 
-        ActiveApartmentByTenantId = leases
-            .Where(x => x.Status == LeaseStatus.Active)
-            .GroupBy(x => x.TenantId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.StartDate).First());
-
-        var orderedTenants = tenants
-            .OrderBy(t => ActiveApartmentByTenantId.ContainsKey(t.Id) ? 0 : 1)
-            .ThenBy(t => ActiveApartmentByTenantId.TryGetValue(t.Id, out var apartment) ? apartment.UnitNumber : "ZZZ")
-            .ThenBy(t => ActiveApartmentByTenantId.TryGetValue(t.Id, out var apartment) ? apartment.RoomNumber : "ZZZ")
-            .ThenBy(t => t.LastName)
-            .ThenBy(t => t.FirstName)
-            .ToList();
-
-        PagedTenants = PagedResult<TenantDto>.Create(orderedTenants, PageNumber, 10);
-
-        PaymentHistoryByTenantId = payments
-            .GroupBy(x => x.TenantId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<PaymentDto>)g.OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id).ToList());
-
-        UnitOptions = units
-            .Where(x => x.IsActive && x.RoomStatuses.Any(r => r.AvailableSlots > 0))
-            .Select(x => new SelectListItem($"{x.PropertyName} - {x.UnitNumber}", x.Id.ToString()))
-            .ToList();
-
-        var payableLeases = leases
-            .Where(x => x.Status is LeaseStatus.Active or LeaseStatus.Ended)
-            .ToList();
-
-        PaymentLeaseOptionsByTenantId = payableLeases
-            .GroupBy(x => x.TenantId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<LeaseDto>)g.OrderByDescending(x => x.StartDate).ToList());
-
-        PaymentLeaseRentMapByTenantId = payableLeases
-            .GroupBy(x => x.TenantId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.ToDictionary(x => x.Id, x => x.MonthlyRent));
-
         PaymentMethodOptions = Enum.GetValues<PaymentMethod>()
             .Select(x => new SelectListItem(x.ToString(), x.ToString()))
             .ToList();
 
-        var tenantApartmentSelectedUnit = tenantApartmentUnitId ?? ApartmentInput.UnitId;
-        if (tenantApartmentSelectedUnit <= 0 && UnitOptions.Count > 0)
-        {
-            int.TryParse(UnitOptions[0].Value, out tenantApartmentSelectedUnit);
-            ApartmentInput.UnitId = tenantApartmentSelectedUnit;
-        }
+        var leaseById = leases.ToDictionary(x => x.Id, x => x);
 
-        if (tenantApartmentSelectedUnit > 0)
-        {
-            try
-            {
-                var info = await leaseService.GetUnitLeaseInfoAsync(tenantApartmentSelectedUnit, cancellationToken);
-                ApartmentInput.MonthlyRent = info.MonthlyRent;
-                TenantApartmentRoomOptions = info.Rooms
-                    .Where(x => x.AvailableSlots > 0)
-                    .Select(x => new SelectListItem($"{x.RoomNumber} ({x.OccupiedCount}/{x.MaxCapacity})", x.RoomId.ToString()))
-                    .ToList();
+        var activeTenantCountsByUnit = tenants
+            .Where(x => x.IsActive && x.UnitId.HasValue)
+            .GroupBy(x => x.UnitId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
 
-                if (ApartmentInput.RoomId <= 0 && TenantApartmentRoomOptions.Count > 0)
-                {
-                    int.TryParse(TenantApartmentRoomOptions[0].Value, out var roomId);
-                    ApartmentInput.RoomId = roomId;
-                }
-            }
-            catch (AppValidationException ex)
-            {
-                ErrorMessage = ex.Message;
-                TenantApartmentRoomOptions = [];
-            }
-        }
+        var rentPayments = payments.Where(x => x.PaymentType == PaymentType.Rent).ToList();
+        var depositPayments = payments.Where(x => x.PaymentType == PaymentType.Deposit).ToList();
 
-        var paidByLeaseId = payments
-            .GroupBy(x => x.LeaseId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
-
-        UnpaidLeasesByTenantId = payableLeases
-            .GroupBy(x => x.TenantId)
+        PaymentHistoryByRoomId = rentPayments
+            .Where(x => leaseById.ContainsKey(x.LeaseId))
+            .GroupBy(x => leaseById[x.LeaseId].UnitId)
             .ToDictionary(
                 g => g.Key,
-                g => (IReadOnlyList<UnpaidLeaseItemViewModel>)g
-                    .Select(lease =>
+                g => (IReadOnlyList<PaymentHistoryItemViewModel>)g
+                    .OrderByDescending(x => x.PaymentDate)
+                    .ThenByDescending(x => x.Id)
+                    .Select(x =>
                     {
-                        var paidAmount = paidByLeaseId.TryGetValue(lease.Id, out var totalPaid) ? totalPaid : 0m;
-                        var unpaidAmount = Math.Max(0m, lease.MonthlyRent - paidAmount);
-
-                        return new UnpaidLeaseItemViewModel
+                        var lease = leaseById[x.LeaseId];
+                        return new PaymentHistoryItemViewModel
                         {
-                            TenantId = lease.TenantId,
-                            LeaseId = lease.Id,
-                            ApartmentLabel = $"{lease.UnitNumber} / {lease.RoomNumber}",
-                            MonthlyRent = lease.MonthlyRent,
-                            PaidAmount = paidAmount,
-                            UnpaidAmount = unpaidAmount,
-                            DueDayOfMonth = lease.DueDayOfMonth
+                            Id = x.Id,
+                            PaymentDate = x.PaymentDate,
+                            DueDate = ResolveDueDate(x.PaymentDate, lease.DueDayOfMonth),
+                            Amount = x.Amount,
+                            PaymentMethod = x.PaymentMethod,
+                            ReferenceNumber = x.ReferenceNumber,
+                            Notes = x.Notes
                         };
                     })
-                    .Where(x => x.UnpaidAmount > 0)
-                    .OrderByDescending(x => x.UnpaidAmount)
                     .ToList());
 
-        if (AddTenantPaymentInput.PaymentDate == default)
+        var rows = units
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.PropertyName)
+            .ThenBy(x => x.UnitNumber)
+            .Select(unit =>
+            {
+                var unitLeases = leases
+                    .Where(x => x.UnitId == unit.Id)
+                    .OrderByDescending(x => x.Status == LeaseStatus.Active)
+                    .ThenByDescending(x => x.StartDate)
+                    .ToList();
+
+                var selectedLease = unitLeases
+                    .FirstOrDefault(x => x.Status is LeaseStatus.Active or LeaseStatus.Ended);
+
+                var monthlyRent = unit.MonthlyRent;
+                var dueDate = selectedLease is null
+                    ? (DateTime?)null
+                    : ResolveDueDate(DateTime.UtcNow.Date, selectedLease.DueDayOfMonth);
+                var unpaidAmount = selectedLease is null
+                    ? 0m
+                    : CalculateOutstandingAmount(selectedLease, rentPayments.Where(p => p.LeaseId == selectedLease.Id), DateTime.UtcNow.Date);
+
+                var activeTenantCount = activeTenantCountsByUnit.TryGetValue(unit.Id, out var count)
+                    ? count
+                    : 0;
+
+                return new PaymentRoomRowViewModel
+                {
+                    RoomId = unit.Id,
+                    UnitRoomLabel = unit.UnitNumber,
+                    PropertyName = unit.PropertyName,
+                    MonthlyRent = monthlyRent,
+                    DueDate = dueDate,
+                    TenantCountDisplay = $"{activeTenantCount}/{unit.RoomMaxCapacity}",
+                    Status = unit.Status.ToString(),
+                    LeaseId = selectedLease?.Id,
+                    CanAddPayment = selectedLease is not null && unpaidAmount > 0,
+                    DefaultAmount = selectedLease is null ? 0m : Math.Min(monthlyRent, unpaidAmount),
+                    UnpaidAmount = unpaidAmount
+                };
+            })
+            .ToList();
+
+        PagedPaymentRows = PagedResult<PaymentRoomRowViewModel>.Create(rows, PageNumber, 10);
+
+        DepositHistoryByUnitId = depositPayments
+            .GroupBy(x => x.UnitId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<DepositHistoryItemViewModel>)g
+                    .GroupBy(x => x.PaymentDate.Date)
+                    .Select(dateGroup => dateGroup
+                        .OrderByDescending(x => x.Id)
+                        .First())
+                    .OrderByDescending(x => x.PaymentDate)
+                    .ThenByDescending(x => x.Id)
+                    .Select(x => new DepositHistoryItemViewModel
+                    {
+                        Id = x.Id,
+                        Amount = x.Amount,
+                        PaymentDate = x.PaymentDate,
+                        PaymentMethod = x.PaymentMethod
+                    })
+                    .ToList());
+
+        var depositsRows = units
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.PropertyName)
+            .ThenBy(x => x.UnitNumber)
+            .Select(unit =>
+            {
+                var activeOrEndedLease = leases
+                    .Where(x => x.UnitId == unit.Id && x.Status is LeaseStatus.Active or LeaseStatus.Ended)
+                    .OrderByDescending(x => x.Status == LeaseStatus.Active)
+                    .ThenByDescending(x => x.StartDate)
+                    .FirstOrDefault();
+
+                var latestDeposit = DepositHistoryByUnitId.TryGetValue(unit.Id, out var history)
+                    ? history.FirstOrDefault()
+                    : null;
+
+                return new DepositRowViewModel
+                {
+                    UnitId = unit.Id,
+                    UnitLabel = unit.UnitNumber,
+                    PropertyName = unit.PropertyName,
+                    LeaseId = activeOrEndedLease?.Id,
+                    DepositAmount = latestDeposit?.Amount,
+                    DatePaid = latestDeposit?.PaymentDate,
+                    CanAddDeposit = activeOrEndedLease is not null,
+                    DepositCount = history?.Count ?? 0
+                };
+            })
+            .ToList();
+
+        PagedDepositRows = PagedResult<DepositRowViewModel>.Create(depositsRows, DepositsPageNumber, 10);
+
+        if (AddPaymentInput.PaymentDate == default)
         {
-            AddTenantPaymentInput.PaymentDate = DateTime.UtcNow.Date;
+            AddPaymentInput.PaymentDate = DateTime.UtcNow.Date;
+        }
+
+        if (AddDepositInput.PaymentDate == default)
+        {
+            AddDepositInput.PaymentDate = DateTime.UtcNow.Date;
+        }
+
+        if (EditPaymentInput.PaymentDate == default)
+        {
+            EditPaymentInput.PaymentDate = DateTime.UtcNow.Date;
         }
     }
 
-    public class TenantInputModel
+    public class PaymentRoomRowViewModel
     {
-        [Required(ErrorMessage = "First Name is required."), MaxLength(100)]
-        public string FirstName { get; set; } = string.Empty;
+        public int RoomId { get; set; }
+        public string UnitRoomLabel { get; set; } = string.Empty;
+        public string PropertyName { get; set; } = string.Empty;
+        public decimal MonthlyRent { get; set; }
+        public DateTime? DueDate { get; set; }
+        public string TenantCountDisplay { get; set; } = "0/0";
+        public string Status { get; set; } = string.Empty;
+        public int? LeaseId { get; set; }
+        public bool CanAddPayment { get; set; }
+        public decimal DefaultAmount { get; set; }
+        public decimal UnpaidAmount { get; set; }
+    }
 
-        [Required(ErrorMessage = "Last Name is required."), MaxLength(100)]
-        public string LastName { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Contact Number is required."), MaxLength(30)]
-        public string? ContactNumber { get; set; }
-
-        [EmailAddress, MaxLength(256)]
-        public string? Email { get; set; }
-
-        [MaxLength(500)]
-        public string? Address { get; set; }
-
-        [DataType(DataType.Date)]
-        public DateTime? DateOfBirth { get; set; }
-
-        [MaxLength(2000)]
+    public class PaymentHistoryItemViewModel
+    {
+        public int Id { get; set; }
+        public DateTime DueDate { get; set; }
+        public DateTime PaymentDate { get; set; }
+        public decimal Amount { get; set; }
+        public PaymentMethod PaymentMethod { get; set; }
+        public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
     }
 
-    public class ApartmentInputModel
+    public class DepositRowViewModel
+    {
+        public int UnitId { get; set; }
+        public string UnitLabel { get; set; } = string.Empty;
+        public string PropertyName { get; set; } = string.Empty;
+        public int? LeaseId { get; set; }
+        public decimal? DepositAmount { get; set; }
+        public DateTime? DatePaid { get; set; }
+        public bool CanAddDeposit { get; set; }
+        public int DepositCount { get; set; }
+    }
+
+    public class DepositHistoryItemViewModel
+    {
+        public int Id { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime PaymentDate { get; set; }
+        public PaymentMethod PaymentMethod { get; set; }
+    }
+
+    public class AddPaymentInputModel
     {
         [Required(ErrorMessage = "Unit is required.")]
-        [Display(Name = "Unit")]
-        public int UnitId { get; set; }
-
-        [Required(ErrorMessage = "Room is required.")]
-        [Display(Name = "Room")]
         public int RoomId { get; set; }
 
-        [DataType(DataType.Date)]
-        [Display(Name = "Start Date")]
-        public DateTime StartDate { get; set; } = DateTime.UtcNow.Date;
+        [Required(ErrorMessage = "Lease is required.")]
+        public int LeaseId { get; set; }
+
+        [Range(0.01, 100000000, ErrorMessage = "Amount must be between 0.01 and 100000000.")]
+        public decimal Amount { get; set; }
 
         [DataType(DataType.Date)]
-        [Display(Name = "End Date")]
-        public DateTime? EndDate { get; set; }
+        [Display(Name = "Payment Date")]
+        public DateTime PaymentDate { get; set; } = DateTime.UtcNow.Date;
 
-        [Range(0, 100000000, ErrorMessage = "Monthly Rent must be between 0 and 100000000.")]
-        [Display(Name = "Monthly Rent")]
-        public decimal MonthlyRent { get; set; }
-
-        [Required(ErrorMessage = "Security Deposit is Required")]
-        [Range(0.01, 100000000, ErrorMessage = "Security Deposit must be between 0.01 and 100000000.")]
-        [Display(Name = "Security Deposit")]
-        public decimal SecurityDeposit { get; set; }
-
-        [Range(1, 28, ErrorMessage = "Due Day must be between 1 and 28.")]
-        [Display(Name = "Due Day")]
-        public int DueDayOfMonth { get; set; } = 1;
-
-        [MaxLength(1000)]
-        public string? Notes { get; set; }
+        [Display(Name = "Payment Method")]
+        public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Cash;
     }
 
-    public class UnpaidLeaseItemViewModel
+    public class AddDepositInputModel
     {
-        public int TenantId { get; set; }
+        [Required(ErrorMessage = "Unit is required.")]
+        public int UnitId { get; set; }
+
+        [Required(ErrorMessage = "Lease is required.")]
         public int LeaseId { get; set; }
-        public string ApartmentLabel { get; set; } = string.Empty;
-        public decimal MonthlyRent { get; set; }
-        public decimal PaidAmount { get; set; }
-        public decimal UnpaidAmount { get; set; }
-        public int DueDayOfMonth { get; set; }
+
+        [Range(0.01, 100000000, ErrorMessage = "Amount must be between 0.01 and 100000000.")]
+        public decimal Amount { get; set; }
+
+        [DataType(DataType.Date)]
+        [Display(Name = "Payment Date")]
+        public DateTime PaymentDate { get; set; } = DateTime.UtcNow.Date;
+
+        [Display(Name = "Payment Method")]
+        public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Cash;
     }
 
-    public class AddTenantPaymentInputModel
+    public class EditPaymentInputModel
     {
-        [Required(ErrorMessage = "Tenant is required.")]
-        public int TenantId { get; set; }
+        [Required]
+        public int PaymentId { get; set; }
 
-        [Required(ErrorMessage = "Apartment is required.")]
-        [Display(Name = "Apartment")]
-        public int LeaseId { get; set; }
+        [Required]
+        public int RoomId { get; set; }
 
         [Range(0.01, 100000000, ErrorMessage = "Amount must be between 0.01 and 100000000.")]
         public decimal Amount { get; set; }
@@ -414,4 +502,41 @@ public class IndexModel(
         [MaxLength(1000)]
         public string? Notes { get; set; }
     }
+
+    private static DateTime ResolveDueDate(DateTime date, int dueDayOfMonth)
+    {
+        var day = Math.Clamp(dueDayOfMonth, 1, 28);
+        return new DateTime(date.Year, date.Month, day);
+    }
+
+    private static decimal CalculateOutstandingAmount(LeaseDto lease, IEnumerable<PaymentDto> leasePayments, DateTime asOfDate)
+    {
+        var leaseEnd = lease.EndDate?.Date ?? asOfDate;
+        var rangeEnd = leaseEnd > asOfDate ? asOfDate : leaseEnd;
+        if (rangeEnd < lease.StartDate.Date)
+        {
+            return 0m;
+        }
+
+        var dueMonths = 0;
+        var current = new DateTime(lease.StartDate.Year, lease.StartDate.Month, 1);
+        var last = new DateTime(rangeEnd.Year, rangeEnd.Month, 1);
+
+        while (current <= last)
+        {
+            var dueDate = ResolveDueDate(current, lease.DueDayOfMonth);
+            if (dueDate >= lease.StartDate.Date && dueDate <= rangeEnd)
+            {
+                dueMonths++;
+            }
+
+            current = current.AddMonths(1);
+        }
+
+        var totalDue = dueMonths * lease.MonthlyRent;
+        var totalPaid = leasePayments.Sum(x => x.Amount);
+        return Math.Max(0m, totalDue - totalPaid);
+    }
+
+
 }

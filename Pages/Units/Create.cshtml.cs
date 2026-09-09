@@ -36,7 +36,6 @@ public class CreateModel(IUnitService unitService, IPropertyService propertyServ
         {
             PropertyId = Input.PropertyId,
             UnitNumber = Input.UnitNumber,
-            Description = Input.Description,
             MonthlyRent = Input.MonthlyRent,
             RoomCount = Input.RoomCount,
             RoomMaxCapacity = Input.RoomMaxCapacity,
@@ -82,8 +81,5 @@ public class CreateModel(IUnitService unitService, IPropertyService propertyServ
         public int RoomMaxCapacity { get; set; } = 3;
 
         public UnitStatus Status { get; set; } = UnitStatus.Available;
-
-        [MaxLength(1000)]
-        public string? Description { get; set; }
     }
 }

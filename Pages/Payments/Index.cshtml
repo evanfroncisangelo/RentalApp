@@ -39,7 +39,7 @@
                 @foreach (var item in Model.PagedItems.Items)
                 {
                     <tr>
-                        <td>@item.PaymentDate.ToString("yyyy-MM-dd")</td>
+                        <td>@item.PaymentDate.ToString("MMM-dd-yyyy")</td>
                         <td>@item.TenantName</td>
                         <td>@item.UnitNumber</td>
                         <td>@item.Amount.ToString("N2")</td>

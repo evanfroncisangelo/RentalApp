@@ -1,15 +1,17 @@
 # Copilot Instructions
 
 ## Project Guidelines
-- User wants implementation executed batch-by-batch and prefers to manually test/verify each batch before proceeding to the next.
+- User wants implementation executed batch-by-batch, preferring to manually test/verify each batch before proceeding to the next. Large implementation requests should be executed in batches, with scan/read/analyze first before making changes.
 - User wants the login page as the app landing page, removing the home page flow. The post-login landing should be the dashboard.
-- User wants pagination on all data grids.
+- User wants pagination on all data grids and prefers AJAX-style pagination across all datagrids so page switches update grid content without full-page refresh.
 - User wants a merged view of Expense Categories and Expenses.
 - User prefers Add/Edit actions to use modal dialogs with in-place save and automatic grid refresh in the Razor Pages UI.
 - User prefers UI terminology updates: use 'Apartments' instead of 'Leases' and use 'Max Capacity' wording in unit add/edit forms.
 - User wants validation failures (e.g., inactive/nonexistent unit) surfaced as user-friendly error messages in Razor Pages UI instead of unhandled runtime exceptions.
 - Use a Modern Minimal DataGrid Dashboard UI standard: data-grid-centric pages, dashboard summary cards, modal-based CRUD, status badges, sidebar navigation, and consistent page flow (header ? summary/filters ? grid ? actions/details) with soft SaaS styling (light background, white cards, deep teal accents, subtle borders/shadows, rounded corners, whitespace).
 - For UI redesign, preserve existing features only (no new functional additions), use Razor Pages-compatible patterns only (no Blazor), keep responsive behavior for desktop/tablet/mobile, allow script adjustments only to support UI, and prioritize performant UI implementations.
+- User wants add actions (payment/property/unit) to update datagrids without full-page refresh, and allows multiple deposits per unit only when deposit month differs.
+- Use MMM-dd-yyyy date format (e.g., Jan-01-2026) for date-related displays across the app.
 
 ## Utilities Module Guidelines
 - Use BillingPeriod month key format (YYYY-MM).

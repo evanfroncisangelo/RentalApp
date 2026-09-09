@@ -19,7 +19,6 @@ public class IndexModel(
     IUtilityCategoryService utilityCategoryService,
     IUtilityBillService utilityBillService,
     IUtilityPaymentService utilityPaymentService,
-    IUtilityReadingService utilityReadingService,
     RentalDbContext dbContext) : PageModel
 {
     [BindProperty(SupportsGet = true)]
@@ -42,17 +41,12 @@ public class IndexModel(
     public List<SelectListItem> TenantOptions { get; private set; } = [];
     public List<SelectListItem> RoomOptions { get; private set; } = [];
     public List<SelectListItem> CategoryOptions { get; private set; } = [];
-    public List<SelectListItem> ReadingCustomerOptions { get; private set; } = [];
     public List<SelectListItem> UtilityTypeOptions { get; private set; } = [];
     public IReadOnlyDictionary<int, int?> TenantDefaultRoomMap { get; private set; } = new Dictionary<int, int?>();
     public bool ShowModal { get; private set; }
     public bool ShowCategoryModal { get; private set; }
     public bool ShowAddPaymentModal { get; private set; }
     public int PaymentModalCustomerId { get; private set; }
-    public string? LastReadingActionMessage { get; private set; }
-
-    [BindProperty]
-    public CreateReadingInputModel ReadingInput { get; set; } = new();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -80,6 +74,7 @@ public class IndexModel(
                     TenantId = Input.TenantId,
                     RoomId = Input.RoomId,
                     UtilityCategoryId = Input.UtilityCategoryId,
+                    UtilityStartDate = Input.UtilityStartDate,
                     AmountToPay = Input.AmountToPay,
                     DueDayOfMonth = Input.DueDayOfMonth
                 }, cancellationToken);
@@ -93,6 +88,7 @@ public class IndexModel(
                     TenantId = Input.TenantId,
                     RoomId = Input.RoomId,
                     UtilityCategoryId = Input.UtilityCategoryId,
+                    UtilityStartDate = Input.UtilityStartDate,
                     AmountToPay = Input.AmountToPay,
                     DueDayOfMonth = Input.DueDayOfMonth
                 }, cancellationToken);
@@ -190,39 +186,10 @@ public class IndexModel(
         return RedirectToPage(new { ExpandedCustomerId = AddUtilityPaymentInput.UtilityCustomerId });
     }
 
-    public async Task<IActionResult> OnPostCreateReadingAsync(CancellationToken cancellationToken)
-    {
-        ModelState.Clear();
-        if (!TryValidateModel(ReadingInput, nameof(ReadingInput)))
-        {
-            await LoadAsync(cancellationToken);
-            return Page();
-        }
-
-        try
-        {
-            var result = await utilityReadingService.CreateAndGenerateBillAsync(new CreateUtilityReadingRequestDto
-            {
-                UtilityCustomerId = ReadingInput.UtilityCustomerId,
-                UtilityTypeId = ReadingInput.UtilityTypeId,
-                ReadingDate = ReadingInput.ReadingDate,
-                ReadingValue = ReadingInput.ReadingValue
-            }, cancellationToken);
-
-            LastReadingActionMessage = $"Reading saved. Bill {result.Bill.BillingPeriod} generated amount {result.Bill.Amount:N2}."
-                + (result.RecalculationTriggered ? " Backdated recalculation triggered." : string.Empty);
-        }
-        catch (AppValidationException ex)
-        {
-            ModelState.AddModelError(string.Empty, ex.Message);
-        }
-
-        await LoadAsync(cancellationToken);
-        return Page();
-    }
-
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        await utilityBillService.EnsureCurrentDueBillsAsync(cancellationToken);
+
         var rawCustomers = await utilityCustomerService.GetAllAsync(null, cancellationToken);
 
         var tenantIds = rawCustomers
@@ -277,6 +244,7 @@ public class IndexModel(
                 TenantId = x.TenantId,
                 RoomId = x.RoomId,
                 UtilityCategoryId = x.UtilityCategoryId,
+                UtilityStartDate = x.UtilityStartDate,
                 AmountToPay = x.DefaultRate,
                 DueDayOfMonth = x.DueDayOfMonth,
                 TenantName = x.TenantId.HasValue && tenants.TryGetValue(x.TenantId.Value, out var tenantName) ? tenantName : null,
@@ -411,12 +379,6 @@ public class IndexModel(
             .OrderBy(x => x.Name)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString())));
 
-        ReadingCustomerOptions = [new SelectListItem("Select Customer", "")];
-        ReadingCustomerOptions.AddRange(rawCustomers
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(x.Name, x.Id.ToString())));
-
         UtilityTypeOptions = [new SelectListItem("Select Utility", "")];
         UtilityTypeOptions.AddRange(await dbContext.UtilityTypes
             .AsNoTracking()
@@ -429,12 +391,6 @@ public class IndexModel(
         {
             AddUtilityPaymentInput.PaymentDate = DateTime.UtcNow.Date;
         }
-
-        if (ReadingInput.ReadingDate == default)
-        {
-            ReadingInput.ReadingDate = DateTime.UtcNow.Date;
-        }
-
     }
 
     public class UtilityCustomerInputModel
@@ -448,6 +404,9 @@ public class IndexModel(
         public int? TenantId { get; set; }
         public int? RoomId { get; set; }
         public int? UtilityCategoryId { get; set; }
+
+        [DataType(DataType.Date)]
+        public DateTime? UtilityStartDate { get; set; }
 
         [Range(0.01, 1000000000)]
         public decimal? AmountToPay { get; set; }
@@ -464,6 +423,7 @@ public class IndexModel(
         public int? TenantId { get; set; }
         public int? RoomId { get; set; }
         public int? UtilityCategoryId { get; set; }
+        public DateTime? UtilityStartDate { get; set; }
         public decimal? AmountToPay { get; set; }
         public int? DueDayOfMonth { get; set; }
         public string? TenantName { get; set; }
@@ -497,21 +457,6 @@ public class IndexModel(
 
         [MaxLength(1000)]
         public string? Notes { get; set; }
-    }
-
-    public class CreateReadingInputModel
-    {
-        [Required]
-        public int UtilityCustomerId { get; set; }
-
-        [Required]
-        public int UtilityTypeId { get; set; }
-
-        [DataType(DataType.Date)]
-        public DateTime ReadingDate { get; set; } = DateTime.UtcNow.Date;
-
-        [Range(0, 1000000000)]
-        public decimal ReadingValue { get; set; }
     }
 
     public class UtilityPaymentHistoryItem

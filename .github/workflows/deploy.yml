@@ -1,0 +1,73 @@
+name: Build Test Publish Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-publish-deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore RentalApp.slnx
+
+      - name: Build (Release)
+        run: dotnet build RentalApp.slnx --configuration Release --no-restore
+
+      - name: Test (Release)
+        run: dotnet test RentalApp.slnx --configuration Release --no-build
+
+      - name: Publish (Release)
+        run: dotnet publish RentalApp.csproj --configuration Release --no-build --output ./publish
+
+      - name: Remove non-deploy artifacts from publish output
+        shell: pwsh
+        run: |
+          if (Test-Path ./publish/appsettings.Development.json) { Remove-Item ./publish/appsettings.Development.json -Force }
+          Get-ChildItem ./publish -Recurse -Include *.db,*.db-shm,*.db-wal,*.sqlite,*.sqlite3,*.bak | Remove-Item -Force -ErrorAction SilentlyContinue
+
+      - name: Deploy to MonsterASP via Web Deploy (IIS)
+        shell: pwsh
+        env:
+          WEBSITE_NAME: ${{ secrets.WEBSITE_NAME }}
+          SERVER_COMPUTER_NAME: ${{ secrets.SERVER_COMPUTER_NAME }}
+          SERVER_USERNAME: ${{ secrets.SERVER_USERNAME }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          $msDeployPaths = @(
+            "${env:ProgramFiles}\IIS\Microsoft Web Deploy V3\msdeploy.exe",
+            "${env:ProgramFiles(x86)}\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+          )
+
+          $msdeploy = $msDeployPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $msdeploy) {
+            throw "msdeploy.exe is not available on the GitHub runner. Install Web Deploy or switch deployment strategy."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:WEBSITE_NAME) -or
+              [string]::IsNullOrWhiteSpace($env:SERVER_COMPUTER_NAME) -or
+              [string]::IsNullOrWhiteSpace($env:SERVER_USERNAME) -or
+              [string]::IsNullOrWhiteSpace($env:SERVER_PASSWORD)) {
+            throw "Deployment secrets are incomplete. Required: WEBSITE_NAME, SERVER_COMPUTER_NAME, SERVER_USERNAME, SERVER_PASSWORD."
+          }
+
+          $sourcePath = (Resolve-Path ./publish).Path
+          & $msdeploy `
+            -verb:sync `
+            -source:contentPath="$sourcePath" `
+            -dest:contentPath="$env:WEBSITE_NAME",computerName="$env:SERVER_COMPUTER_NAME",userName="$env:SERVER_USERNAME",password="$env:SERVER_PASSWORD",authType="Basic" `
+            -allowUntrusted
