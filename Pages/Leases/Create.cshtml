@@ -81,7 +81,11 @@
             }
 
             const response = await fetch(`/api/leases/unit-info/${unitId}`);
-            if (!response.ok) return;
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to load unit details right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Load Unit Details');
+                return;
+            }
 
             const data = await response.json();
             monthlyRent.value = data.monthlyRent;

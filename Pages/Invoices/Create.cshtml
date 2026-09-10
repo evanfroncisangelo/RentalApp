@@ -12,11 +12,12 @@
     <div class="row">
         <div class="col-md-6 mb-3">
             <label asp-for="Input.TenantId" class="form-label"></label>
-            <select asp-for="Input.TenantId" asp-items="Model.TenantOptions" class="form-select"></select>
+            <select asp-for="Input.TenantId" asp-items="Model.TenantOptions" class="form-select" id="tenantSelect"></select>
         </div>
         <div class="col-md-6 mb-3">
-            <label asp-for="Input.LeaseId" class="form-label"></label>
-            <select asp-for="Input.LeaseId" asp-items="Model.LeaseOptions" class="form-select"></select>
+            <label class="form-label">Connected Lease / Unit</label>
+            <input type="text" class="form-control" id="leaseDisplay" readonly value="@Model.SelectedLeaseLabel" />
+            <input type="hidden" asp-for="Input.LeaseId" id="leaseIdInput" />
         </div>
     </div>
 
@@ -26,18 +27,39 @@
         <div class="col-md-4 mb-3"><label asp-for="Input.Status" class="form-label"></label><select asp-for="Input.Status" asp-items="Model.StatusOptions" class="form-select"></select></div>
     </div>
 
-    @for (var i = 0; i < Model.Input.Items.Count; i++)
-    {
-        <div class="row">
-            <div class="col-md-8 mb-3"><label class="form-label">Item Description</label><input asp-for="Input.Items[i].Description" class="form-control" /></div>
-            <div class="col-md-4 mb-3"><label class="form-label">Amount</label><input asp-for="Input.Items[i].Amount" class="form-control" /></div>
-        </div>
-    }
-
-    <div class="mb-3"><label asp-for="Input.Notes" class="form-label"></label><textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea></div>
+    <div class="alert alert-info">
+        Invoice items are auto-generated from saved connected records (Rent, Deposit, Utility Bills) for the selected tenant and lease.
+    </div>
 
     <div class="d-flex justify-content-end gap-2">
         <a class="btn btn-outline-secondary" asp-page="/Invoices/Index">Cancel</a>
-        <button class="btn btn-primary" type="submit">Save Invoice</button>
+        <button class="btn btn-primary" type="submit">Save Invoice (PDF)</button>
     </div>
 </form>
+
+@section Scripts {
+    <script>
+        const tenantLeaseMap = @Html.Raw(Model.TenantLeaseMapJson);
+        const tenantSelect = document.getElementById('tenantSelect');
+        const leaseIdInput = document.getElementById('leaseIdInput');
+        const leaseDisplay = document.getElementById('leaseDisplay');
+
+        function resolveLeaseForTenant() {
+            const tenantId = Number(tenantSelect?.value || 0);
+            const options = tenantLeaseMap[tenantId] || [];
+
+            if (options.length === 0) {
+                leaseIdInput.value = '0';
+                leaseDisplay.value = 'No active/ended lease found for selected tenant.';
+                return;
+            }
+
+            const selected = options[0];
+            leaseIdInput.value = selected.LeaseId;
+            leaseDisplay.value = `Lease #${selected.LeaseId} - Unit ${selected.UnitNumber} (${selected.LeaseStatus})`;
+        }
+
+        tenantSelect?.addEventListener('change', resolveLeaseForTenant);
+        resolveLeaseForTenant();
+    </script>
+}

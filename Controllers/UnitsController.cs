@@ -44,5 +44,12 @@ public class UnitsController(IUnitService unitService) : ControllerBase
         await unitService.DeactivateAsync(id, cancellationToken);
         return NoContent();
     }
+
+    [HttpDelete("{id:int}/hard")]
+    public async Task<IActionResult> HardDelete(int id, CancellationToken cancellationToken)
+    {
+        await unitService.HardDeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }
 

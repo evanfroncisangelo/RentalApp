@@ -17,7 +17,6 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
     public InputModel Input { get; set; } = new();
 
     public List<SelectListItem> UnitOptions { get; private set; } = [];
-    public string SelectedUnitCapacity { get; private set; } = "-";
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -30,12 +29,10 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
                 FirstName = item.FirstName,
                 LastName = item.LastName,
                 ContactNumber = item.ContactNumber,
-                Email = item.Email,
                 Address = item.Address,
                 UnitId = item.UnitId,
                 UnitNumber = item.UnitNumber,
                 RoomNumber = item.RoomNumber,
-                DateOfBirth = item.DateOfBirth,
                 MoveInDate = item.MoveInDate,
                 Notes = item.Notes,
                 IsActive = item.IsActive
@@ -87,12 +84,10 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
             FirstName = Input.FirstName,
             LastName = Input.LastName,
             ContactNumber = Input.ContactNumber,
-            Email = Input.Email,
             Address = Input.Address,
             UnitId = selectedUnit.Id,
             UnitNumber = Input.UnitNumber,
             RoomNumber = Input.RoomNumber,
-            DateOfBirth = Input.DateOfBirth,
             MoveInDate = Input.MoveInDate,
             Notes = Input.Notes,
             IsActive = Input.IsActive
@@ -114,9 +109,6 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
         [MaxLength(30)]
         public string? ContactNumber { get; set; }
 
-        [EmailAddress, MaxLength(256)]
-        public string? Email { get; set; }
-
         [MaxLength(500)]
         public string? Address { get; set; }
 
@@ -129,9 +121,6 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
 
         [MaxLength(50)]
         public string? RoomNumber { get; set; }
-
-        [DataType(DataType.Date)]
-        public DateTime? DateOfBirth { get; set; }
 
         [DataType(DataType.Date)]
         [Display(Name = "Move In Date")]
@@ -154,16 +143,18 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
             .GroupBy(t => t.UnitId!.Value)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        var activeTenantCountByUnitExcludingCurrent = allTenants
-            .Where(t => t.IsActive
-                        && t.UnitId.HasValue
-                        && (!currentTenantId.HasValue || t.Id != currentTenantId.Value))
-            .GroupBy(t => t.UnitId!.Value)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        var selectedTenantCurrentUnitId = currentTenantId.HasValue
-            ? allTenants.FirstOrDefault(x => x.Id == currentTenantId.Value)?.UnitId
+        var currentTenant = currentTenantId.HasValue
+            ? allTenants.FirstOrDefault(x => x.Id == currentTenantId.Value)
             : null;
+
+        if (currentTenant is not null && currentTenant.IsActive && currentTenant.UnitId.HasValue)
+        {
+            var currentUnitId = currentTenant.UnitId.Value;
+            if (activeTenantCountByUnit.TryGetValue(currentUnitId, out var count) && count > 0)
+            {
+                activeTenantCountByUnit[currentUnitId] = count - 1;
+            }
+        }
 
         var activeUnits = units
             .Where(x => x.IsActive)
@@ -171,37 +162,37 @@ public class EditModel(ITenantService tenantService, IUnitService unitService) :
             .Select(x => new
             {
                 Unit = x,
-                Assigned = activeTenantCountByUnit.TryGetValue(x.Id, out var count) ? count : 0,
-                AssignedExcludingCurrent = activeTenantCountByUnitExcludingCurrent.TryGetValue(x.Id, out var countWithoutCurrent) ? countWithoutCurrent : 0
+                Assigned = activeTenantCountByUnit.TryGetValue(x.Id, out var count) ? count : 0
             })
             .ToList();
 
         UnitOptions = activeUnits
-            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned} tenants)", x.Unit.Id.ToString()))
+            .Where(x => x.Assigned < x.Unit.MaxCapacity || (Input.UnitId.HasValue && x.Unit.Id == Input.UnitId.Value))
+            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned}/{x.Unit.MaxCapacity})", x.Unit.Id.ToString()))
             .ToList();
 
         if (!Input.UnitId.HasValue && UnitOptions.Count > 0 && int.TryParse(UnitOptions[0].Value, out var firstUnitId))
         {
             Input.UnitId = firstUnitId;
         }
-
-        var chosen = activeUnits.FirstOrDefault(x => x.Unit.Id == Input.UnitId);
-        if (chosen is null)
-        {
-            SelectedUnitCapacity = "-";
-            return;
-        }
-
-        SelectedUnitCapacity = $"{chosen.Assigned} tenants";
     }
 
     private async Task<bool> IsUnitAvailableAsync(int unitId, int? currentTenantId, CancellationToken cancellationToken)
     {
         var units = await unitService.GetAllAsync(null, cancellationToken);
         var selectedUnit = units.FirstOrDefault(x => x.IsActive && x.Id == unitId);
+        if (selectedUnit is null)
+        {
+            return false;
+        }
 
-        // Units are always available now (no capacity limiting)
-        return selectedUnit is not null;
+        var allTenants = await tenantService.GetAllAsync(null, cancellationToken);
+        var assignedCount = allTenants.Count(x =>
+            x.IsActive &&
+            x.UnitId == unitId &&
+            (!currentTenantId.HasValue || x.Id != currentTenantId.Value));
+
+        return assignedCount < selectedUnit.MaxCapacity;
     }
 
     private async Task<RentalApp.Application.DTOs.Units.UnitDto?> GetSelectedUnitAsync(int unitId, CancellationToken cancellationToken)

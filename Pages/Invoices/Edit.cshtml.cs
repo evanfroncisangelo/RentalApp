@@ -18,6 +18,7 @@ public class EditModel(IInvoiceService invoiceService) : PageModel
 
     public string InvoiceNumber { get; private set; } = string.Empty;
     public List<SelectListItem> StatusOptions { get; private set; } = [];
+    public IReadOnlyList<InvoiceItemDto> Items { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -27,17 +28,15 @@ public class EditModel(IInvoiceService invoiceService) : PageModel
         {
             var invoice = await invoiceService.GetByIdAsync(id, cancellationToken);
             InvoiceNumber = invoice.InvoiceNumber;
+            Items = invoice.Items;
             Input = new InputModel
             {
                 Id = invoice.Id,
                 InvoiceDate = invoice.InvoiceDate,
                 DueDate = invoice.DueDate,
-                Status = invoice.Status,
-                Notes = invoice.Notes,
-                Items = invoice.Items.Select(x => new ItemInputModel { Description = x.Description, Amount = x.Amount }).ToList()
+                Status = invoice.Status
             };
 
-            while (Input.Items.Count < 3) Input.Items.Add(new ItemInputModel());
             return Page();
         }
         catch (AppNotFoundException)
@@ -49,10 +48,12 @@ public class EditModel(IInvoiceService invoiceService) : PageModel
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         StatusOptions = Enum.GetValues<InvoiceStatus>().Select(x => new SelectListItem(x.ToString(), x.ToString())).ToList();
-        while (Input.Items.Count < 3) Input.Items.Add(new ItemInputModel());
 
         if (!ModelState.IsValid)
         {
+            var invoice = await invoiceService.GetByIdAsync(Input.Id, cancellationToken);
+            InvoiceNumber = invoice.InvoiceNumber;
+            Items = invoice.Items;
             return Page();
         }
 
@@ -61,8 +62,8 @@ public class EditModel(IInvoiceService invoiceService) : PageModel
             InvoiceDate = Input.InvoiceDate,
             DueDate = Input.DueDate,
             Status = Input.Status,
-            Notes = Input.Notes,
-            Items = Input.Items.Select(x => new CreateInvoiceItemRequestDto { Description = x.Description, Amount = x.Amount }).ToList()
+            Notes = null,
+            Items = []
         }, cancellationToken);
 
         return RedirectToPage("/Invoices/Index");
@@ -71,16 +72,13 @@ public class EditModel(IInvoiceService invoiceService) : PageModel
     public class InputModel
     {
         public int Id { get; set; }
-        [DataType(DataType.Date)] public DateTime InvoiceDate { get; set; }
-        [DataType(DataType.Date)] public DateTime DueDate { get; set; }
-        public InvoiceStatus Status { get; set; }
-        public string? Notes { get; set; }
-        public List<ItemInputModel> Items { get; set; } = [];
-    }
 
-    public class ItemInputModel
-    {
-        public string Description { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
+        [DataType(DataType.Date)]
+        public DateTime InvoiceDate { get; set; }
+
+        [DataType(DataType.Date)]
+        public DateTime DueDate { get; set; }
+
+        public InvoiceStatus Status { get; set; }
     }
 }

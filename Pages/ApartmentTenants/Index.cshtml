@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model RentalApp.Pages.ApartmentTenants.IndexModel
 @using System.Text.Json
 @{
@@ -55,6 +55,7 @@
                             <div class="btn-group" role="group">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditPropertyModal(@Html.Raw(JsonSerializer.Serialize(property)))'>Edit</button>
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="openAddUnitModal(@property.Id)">+ Add Unit</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Property" onclick="hardDeleteProperty(@property.Id)">X</button>
                             </div>
                         </td>
                     </tr>
@@ -70,7 +71,6 @@
                                                 <tr>
                                                     <th>Unit</th>
                                                     <th>Monthly Rent</th>
-                                                    <th>Max Capacity</th>
                                                     <th>Status</th>
                                                     <th class="text-end">Actions</th>
                                                 </tr>
@@ -79,34 +79,27 @@
                                                 @if (propertyUnits.Count == 0)
                                                 {
                                                     <tr>
-                                                        <td colspan="5" class="text-center text-muted">No units found for this property.</td>
+                                                        <td colspan="4" class="text-center text-muted">No units found for this property.</td>
                                                     </tr>
                                                 }
                                                 else
                                                 {
                                                     @foreach (var unit in propertyUnits)
                                                     {
-                                                        var unitRoomsCollapseId = $"unit-rooms-{property.Id}-{unit.Id}";
-
                                                         <tr>
                                                             <td>
-                                                                <button type="button" class="btn btn-sm btn-outline-secondary unit-toggle" data-bs-toggle="collapse" data-bs-target="#@unitRoomsCollapseId" aria-expanded="false" aria-controls="@unitRoomsCollapseId">View Capacity</button>
-                                                                <span class="ms-2">@unit.UnitNumber</span>
+                                                                <span>@unit.UnitNumber</span>
                                                             </td>
                                                             <td>@unit.MonthlyRent.ToString("N2")</td>
                                                             <td>@(unit.IsActive ? unit.Status.ToString() : "Inactive")</td>
                                                             <td class="text-end">
-                                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditUnitModal(@Html.Raw(JsonSerializer.Serialize(unit)))'>Edit</button>
-                                                            </td>
-                                                        </tr>
-
-                                                        <tr class="collapse unit-collapse" id="@unitRoomsCollapseId">
-                                                            <td colspan="4" class="bg-white">
-                                                                <div class="px-2 py-1">
-                                                                    <p class="text-muted mb-0">No room capacity tracking for this unit.</p>
+                                                                <div class="btn-group" role="group">
+                                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditUnitModal(@Html.Raw(JsonSerializer.Serialize(unit)))'>Edit</button>
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Unit" onclick="hardDeleteUnit(@unit.Id)">X</button>
                                                                 </div>
                                                             </td>
                                                         </tr>
+
                                                     }
                                                 }
                                             </tbody>
@@ -187,17 +180,9 @@
                                 <div class="p-2">
                                     <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
                                         <strong class="app-section-title mb-0">Payment History - @row.UnitRoomLabel</strong>
-                                        @if (row.CanAddPayment && row.LeaseId.HasValue)
+                                        @if (row.HistoryHasOpenDue)
                                         {
-                                            <button type="button"
-                                                    class="btn btn-sm btn-primary open-add-payment-modal"
-                                                    data-room-id="@row.RoomId"
-                                                    data-lease-id="@row.LeaseId"
-                                                    data-amount="@row.DefaultAmount"
-                                                    data-unit-room="@row.UnitRoomLabel"
-                                                    data-due-date="@(row.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty)">
-                                                Add Payment
-                                            </button>
+                                            <span class="badge text-bg-light border text-dark">Select an unpaid or partial due below to add payment.</span>
                                         }
                                         else
                                         {
@@ -212,17 +197,16 @@
                                                     <th>Due Date</th>
                                                     <th>Date Paid</th>
                                                     <th>Amount</th>
+                                                    <th>Status</th>
                                                     <th>Method</th>
-                                                    <th>Reference</th>
-                                                    <th>Notes</th>
-                                                    <th style="width: 120px;">Action</th>
+                                                    <th style="width: 180px;">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @if (history.Count == 0)
                                                 {
                                                     <tr>
-                                                        <td colspan="7" class="text-center text-muted">No payment history yet.</td>
+                                                        <td colspan="6" class="text-center text-muted">No payment history yet.</td>
                                                     </tr>
                                                 }
                                                 else
@@ -231,23 +215,45 @@
                                                     {
                                                         <tr>
                                                             <td>@payment.DueDate.ToString("MMM-dd-yyyy")</td>
-                                                            <td>@payment.PaymentDate.ToString("MMM-dd-yyyy")</td>
-                                                            <td>@payment.Amount.ToString("N2")</td>
-                                                            <td>@payment.PaymentMethod</td>
-                                                            <td>@(string.IsNullOrWhiteSpace(payment.ReferenceNumber) ? "-" : payment.ReferenceNumber)</td>
-                                                            <td>@(string.IsNullOrWhiteSpace(payment.Notes) ? "-" : payment.Notes)</td>
+                                                            <td>@(payment.PaymentDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
+                                                            <td>@payment.AmountDue.ToString("N2")</td>
+                                                            <td>@payment.Status</td>
+                                                            <td>@(payment.PaymentMethod?.ToString() ?? "-")</td>
                                                             <td>
-                                                                <button type="button"
-                                                                        class="btn btn-sm btn-outline-warning open-edit-payment-modal"
-                                                                        data-payment-id="@payment.Id"
-                                                                        data-room-id="@row.RoomId"
-                                                                        data-amount="@payment.Amount"
-                                                                        data-payment-date="@payment.PaymentDate.ToString("yyyy-MM-dd")"
-                                                                        data-payment-method="@payment.PaymentMethod"
-                                                                        data-reference="@payment.ReferenceNumber"
-                                                                        data-notes="@payment.Notes">
-                                                                    Edit
-                                                                </button>
+                                                                <div class="d-flex gap-2 flex-wrap">
+                                                                    @if (payment.CanAddPayment && row.LeaseId.HasValue && payment.BalanceAmount > 0)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="btn btn-sm btn-primary open-add-payment-modal"
+                                                                                data-room-id="@row.RoomId"
+                                                                                data-lease-id="@row.LeaseId"
+                                                                                data-amount="@payment.BalanceAmount"
+                                                                                data-unit-room="@row.UnitRoomLabel"
+                                                                                data-due-date="@payment.DueDate.ToString("yyyy-MM-dd")">
+                                                                            Add Payment
+                                                                        </button>
+                                                                    }
+
+                                                                    @if (payment.CanEdit && payment.Id.HasValue && payment.PaymentDate.HasValue && payment.RecordedPaymentAmount.HasValue && payment.PaymentMethod.HasValue)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="btn btn-sm btn-outline-warning open-edit-payment-modal"
+                                                                                data-payment-id="@payment.Id.Value"
+                                                                                data-room-id="@row.RoomId"
+                                                                                data-amount="@payment.RecordedPaymentAmount.Value"
+                                                                                data-payment-date="@payment.PaymentDate.Value.ToString("yyyy-MM-dd")"
+                                                                                data-payment-method="@payment.PaymentMethod.Value"
+                                                                                data-reference="@payment.ReferenceNumber"
+                                                                                data-notes="@payment.Notes">
+                                                                            Edit
+                                                                        </button>
+                                                                    }
+
+                                                                    @if (!payment.CanAddPayment && !(payment.CanEdit && payment.Id.HasValue && payment.PaymentDate.HasValue && payment.RecordedPaymentAmount.HasValue && payment.PaymentMethod.HasValue))
+                                                                    {
+                                                                        <span class="text-muted">-</span>
+                                                                    }
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     }
@@ -323,19 +329,13 @@
                         <label class="form-label">Unit Number</label>
                         <input class="form-control" id="unitNumber" required maxlength="50" />
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Monthly Rent</label>
-                            <input type="number" step="0.01" min="0" class="form-control" id="unitMonthlyRent" required />
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Room Count</label>
-                            <input type="number" min="1" max="500" class="form-control" id="unitRoomCount" required />
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Max Capacity</label>
-                            <input type="number" min="1" class="form-control" id="unitRoomMaxCapacity" required />
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monthly Rent</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="unitMonthlyRent" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="unitMaxCapacity">Max Capacity</label>
+                        <input type="number" step="1" min="0" inputmode="numeric" class="form-control" id="unitMaxCapacity" required />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Status</label>
@@ -369,6 +369,7 @@
                 <div class="modal-body">
                     <input type="hidden" asp-for="AddPaymentInput.RoomId" id="addPaymentRoomId" />
                     <input type="hidden" asp-for="AddPaymentInput.LeaseId" id="addPaymentLeaseId" />
+                    <input type="hidden" asp-for="AddPaymentInput.DueDate" id="addPaymentDueDateValue" />
 
                     <div class="mb-2">
                         <label class="form-label">Unit</label>
@@ -382,8 +383,8 @@
                     </div>
 
                     <div class="mb-2">
-                        <label class="form-label">Due Date</label>
-                        <input type="text" class="form-control" id="addPaymentDueDate" readonly />
+                        <label asp-for="AddPaymentInput.DueDate" class="form-label"></label>
+                        <input asp-for="AddPaymentInput.DueDate" type="text" class="form-control" id="addPaymentDueDate" readonly />
                     </div>
 
                     <div class="mb-2">
@@ -465,7 +466,8 @@
                                                 data-lease-id="@row.LeaseId"
                                                 data-unit-label="@row.UnitLabel"
                                                 data-property-name="@row.PropertyName"
-                                                data-amount="0">
+                                                data-amount="0"
+                                                data-due-date="@((row.DatePaid ?? DateTime.UtcNow.Date).ToString("yyyy-MM-dd"))">
                                             Add Deposit
                                         </button>
                                     }
@@ -549,6 +551,7 @@
                 <div class="modal-body">
                     <input type="hidden" asp-for="AddDepositInput.UnitId" id="addDepositUnitId" />
                     <input type="hidden" asp-for="AddDepositInput.LeaseId" id="addDepositLeaseId" />
+                    <input type="hidden" asp-for="AddDepositInput.DueDate" id="addDepositDueDateValue" />
 
                     <div class="mb-2">
                         <label class="form-label">Unit</label>
@@ -559,6 +562,11 @@
                         <label asp-for="AddDepositInput.Amount" class="form-label">Deposit</label>
                         <input asp-for="AddDepositInput.Amount" class="form-control" id="addDepositAmountInput" />
                         <span asp-validation-for="AddDepositInput.Amount" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="AddDepositInput.DueDate" class="form-label"></label>
+                        <input asp-for="AddDepositInput.DueDate" type="text" class="form-control" id="addDepositDueDate" readonly />
                     </div>
 
                     <div class="mb-2">
@@ -650,6 +658,10 @@
             addPaymentModal?.show();
         }
 
+        if (@Model.ShowAddDepositModal.ToString().ToLowerInvariant()) {
+            addDepositModal?.show();
+        }
+
         if (@Model.ShowEditPaymentModal.ToString().ToLowerInvariant()) {
             editPaymentModal?.show();
         }
@@ -666,7 +678,77 @@
             el.classList.add('d-none');
         }
 
+        function getUnitStatusValue(status) {
+            if (typeof status === 'number' && Number.isFinite(status)) {
+                return String(status);
+            }
+
+            const normalizedStatus = String(status ?? '').trim();
+            if (/^\d+$/.test(normalizedStatus)) {
+                return normalizedStatus;
+            }
+
+            const statusMap = { Available: '1', Occupied: '2', Maintenance: '3', Inactive: '4' };
+            return statusMap[normalizedStatus] ?? '1';
+        }
+
+        function buildUnitPayload() {
+            const propertyId = Number(document.getElementById('unitPropertyId').value);
+            const unitNumberInput = document.getElementById('unitNumber');
+            const unitMonthlyRentInput = document.getElementById('unitMonthlyRent');
+            const unitMaxCapacityInput = document.getElementById('unitMaxCapacity');
+            const unitNumber = unitNumberInput.value.trim();
+            const monthlyRentRaw = unitMonthlyRentInput.value.trim().replace(/,/g, '');
+            const monthlyRent = Number(monthlyRentRaw);
+            const maxCapacityRaw = unitMaxCapacityInput.value.trim();
+            const maxCapacity = Number(maxCapacityRaw);
+
+            if (!Number.isInteger(propertyId) || propertyId <= 0) {
+                showError('unitModalError', 'Property is required.');
+                return null;
+            }
+
+            if (!unitNumber) {
+                showError('unitModalError', 'Unit name is required.');
+                return null;
+            }
+
+            if (!monthlyRentRaw || !Number.isFinite(monthlyRent) || monthlyRent < 0) {
+                showError('unitModalError', 'Monthly rent must be a valid amount.');
+                return null;
+            }
+
+            if (!maxCapacityRaw || !Number.isInteger(maxCapacity) || maxCapacity < 0) {
+                showError('unitModalError', 'Max capacity must be a whole number zero or greater.');
+                return null;
+            }
+
+            unitNumberInput.value = unitNumber;
+            unitMonthlyRentInput.value = monthlyRentRaw;
+            unitMaxCapacityInput.value = String(maxCapacity);
+
+            return {
+                propertyId,
+                unitNumber,
+                monthlyRent,
+                maxCapacity,
+                status: Number(document.getElementById('unitStatus').value)
+            };
+        }
+
+        function resetModalArtifacts() {
+            document.querySelectorAll('.modal.show').forEach(modalElement => {
+                bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+            });
+
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+        }
+
         async function replaceAppContentFromHtml(html, urlToPush) {
+            resetModalArtifacts();
+
             const appContent = document.querySelector('.app-content');
             if (!appContent) {
                 window.location.href = urlToPush || window.location.href;
@@ -805,8 +887,7 @@
             document.getElementById('unitPropertyId').value = propertyId;
             document.getElementById('unitNumber').value = '';
             document.getElementById('unitMonthlyRent').value = '';
-            document.getElementById('unitRoomCount').value = '1';
-            document.getElementById('unitRoomMaxCapacity').value = '3';
+            document.getElementById('unitMaxCapacity').value = '0';
             document.getElementById('unitStatus').value = '1';
             unitModal.show();
         }
@@ -818,10 +899,8 @@
             document.getElementById('unitPropertyId').value = unit.PropertyId;
             document.getElementById('unitNumber').value = unit.UnitNumber ?? '';
             document.getElementById('unitMonthlyRent').value = unit.MonthlyRent ?? 0;
-            document.getElementById('unitRoomCount').value = unit.RoomCount ?? 1;
-            document.getElementById('unitRoomMaxCapacity').value = unit.RoomMaxCapacity ?? 3;
-            const statusMap = { 'Available': '1', 'Occupied': '2', 'Maintenance': '3', 'Inactive': '4' };
-            document.getElementById('unitStatus').value = statusMap[unit.Status] ?? '1';
+            document.getElementById('unitMaxCapacity').value = unit.MaxCapacity ?? 0;
+            document.getElementById('unitStatus').value = getUnitStatusValue(unit.Status);
             unitModal.show();
         }
 
@@ -855,13 +934,12 @@
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                showError('propertyModalError', text || 'Failed to save property.');
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to save property right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Save Property');
                 return;
             }
 
-            propertyModal.hide();
-            await refreshCurrentPageContent();
+            window.location.reload();
         });
 
         document.getElementById('unitForm')?.addEventListener('submit', async function (e) {
@@ -874,14 +952,10 @@
                 sessionStorage.setItem(propertiesOpenStorageKey, selectedPropertyId);
             }
 
-            const payload = {
-                propertyId: Number(document.getElementById('unitPropertyId').value),
-                unitNumber: document.getElementById('unitNumber').value,
-                monthlyRent: Number(document.getElementById('unitMonthlyRent').value),
-                roomCount: Number(document.getElementById('unitRoomCount').value),
-                roomMaxCapacity: Number(document.getElementById('unitRoomMaxCapacity').value),
-                status: Number(document.getElementById('unitStatus').value)
-            };
+            const payload = buildUnitPayload();
+            if (!payload) {
+                return;
+            }
 
             const response = await fetch(id ? `/api/units/${id}` : '/api/units', {
                 method: id ? 'PUT' : 'POST',
@@ -890,20 +964,56 @@
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                showError('unitModalError', text || 'Failed to save unit.');
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to save unit right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Save Unit');
                 return;
             }
 
-            unitModal.hide();
-            await refreshCurrentPageContent();
+            window.location.reload();
         });
+
+        window.hardDeleteProperty = async function (propertyId) {
+            if (!confirm('Permanently delete this property and all related unit records?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/properties/${propertyId}/hard`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to delete property right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Delete Property');
+                return;
+            }
+
+            window.location.reload();
+        }
+
+        window.hardDeleteUnit = async function (unitId) {
+            if (!confirm('Permanently delete this unit and all related records?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/units/${unitId}/hard`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to delete unit right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Delete Unit');
+                return;
+            }
+
+            window.location.reload();
+        }
 
         const addPaymentRoomIdInput = document.getElementById('addPaymentRoomId');
         const addPaymentLeaseIdInput = document.getElementById('addPaymentLeaseId');
         const addPaymentAmountInput = document.getElementById('addPaymentAmountInput');
         const addPaymentUnitRoomLabelInput = document.getElementById('addPaymentUnitRoomLabel');
         const addPaymentDueDateInput = document.getElementById('addPaymentDueDate');
+        const addPaymentDueDateValueInput = document.getElementById('addPaymentDueDateValue');
 
         document.querySelectorAll('.open-add-payment-modal').forEach(button => {
             button.addEventListener('click', function () {
@@ -918,6 +1028,7 @@
                 if (addPaymentAmountInput) addPaymentAmountInput.value = Number(amount).toFixed(2);
                 if (addPaymentUnitRoomLabelInput) addPaymentUnitRoomLabelInput.value = unitRoom;
                 if (addPaymentDueDateInput) addPaymentDueDateInput.value = dueDate;
+                if (addPaymentDueDateValueInput) addPaymentDueDateValueInput.value = dueDate;
 
                 addPaymentModal?.show();
             });
@@ -943,6 +1054,8 @@
         const addDepositLeaseIdInput = document.getElementById('addDepositLeaseId');
         const addDepositAmountInput = document.getElementById('addDepositAmountInput');
         const addDepositUnitLabelInput = document.getElementById('addDepositUnitLabel');
+        const addDepositDueDateInput = document.getElementById('addDepositDueDate');
+        const addDepositDueDateValueInput = document.getElementById('addDepositDueDateValue');
 
         document.querySelectorAll('.open-add-deposit-modal').forEach(button => {
             button.addEventListener('click', function () {
@@ -951,11 +1064,14 @@
                 const amount = this.dataset.amount || '';
                 const unitLabel = this.dataset.unitLabel || '';
                 const propertyName = this.dataset.propertyName || '';
+                const dueDate = this.dataset.dueDate || '';
 
                 if (addDepositUnitIdInput) addDepositUnitIdInput.value = unitId;
                 if (addDepositLeaseIdInput) addDepositLeaseIdInput.value = leaseId;
                 if (addDepositAmountInput) addDepositAmountInput.value = amount && Number(amount) > 0 ? Number(amount).toFixed(2) : '';
                 if (addDepositUnitLabelInput) addDepositUnitLabelInput.value = `${unitLabel} - ${propertyName}`;
+                if (addDepositDueDateInput) addDepositDueDateInput.value = dueDate;
+                if (addDepositDueDateValueInput) addDepositDueDateValueInput.value = dueDate;
 
                 addDepositModal?.show();
             });
@@ -1019,3 +1135,4 @@
         }
     </script>
 }
+

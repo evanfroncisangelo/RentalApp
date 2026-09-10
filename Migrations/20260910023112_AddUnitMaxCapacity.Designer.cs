@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RentalApp.Data;
 
@@ -11,9 +12,11 @@ using RentalApp.Data;
 namespace RentalApp.Migrations
 {
     [DbContext(typeof(RentalDbContext))]
-    partial class RentalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260910023112_AddUnitMaxCapacity")]
+    partial class AddUnitMaxCapacity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

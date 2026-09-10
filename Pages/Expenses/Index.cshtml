@@ -255,13 +255,22 @@
             categoryModal.show();
         });
 
+        function getJsonValue(model, pascalCaseName) {
+            if (!model) {
+                return null;
+            }
+
+            const camelCaseName = pascalCaseName.charAt(0).toLowerCase() + pascalCaseName.slice(1);
+            return model[pascalCaseName] ?? model[camelCaseName] ?? null;
+        }
+
         document.querySelectorAll('.open-category-edit-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const category = JSON.parse(this.dataset.category);
                 document.getElementById('categoryModalTitle').textContent = 'Edit Expense Category';
-                document.getElementById('categoryIdInput').value = category.id ?? 0;
-                document.getElementById('categoryNameInput').value = category.name ?? '';
-                document.getElementById('categoryDescriptionInput').value = category.description ?? '';
+                document.getElementById('categoryIdInput').value = getJsonValue(category, 'Id') ?? 0;
+                document.getElementById('categoryNameInput').value = getJsonValue(category, 'Name') ?? '';
+                document.getElementById('categoryDescriptionInput').value = getJsonValue(category, 'Description') ?? '';
                 categoryModal.show();
             });
         });
@@ -283,13 +292,13 @@
             button.addEventListener('click', function () {
                 const expense = JSON.parse(this.dataset.expense);
                 document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
-                document.getElementById('expenseIdInput').value = expense.id ?? 0;
-                document.getElementById('expensePropertyInput').value = expense.propertyId ?? '';
-                document.getElementById('expenseUnitInput').value = expense.unitId ?? '';
-                document.getElementById('expenseCategoryInput').value = expense.categoryId ?? '';
-                document.getElementById('expenseAmountInput').value = expense.amount ?? '';
-                document.getElementById('expenseDateInput').value = (expense.expenseDate ?? '').toString().substring(0, 10);
-                document.getElementById('expenseNotesInput').value = expense.notes ?? '';
+                document.getElementById('expenseIdInput').value = getJsonValue(expense, 'Id') ?? 0;
+                document.getElementById('expensePropertyInput').value = getJsonValue(expense, 'PropertyId') ?? '';
+                document.getElementById('expenseUnitInput').value = getJsonValue(expense, 'UnitId') ?? '';
+                document.getElementById('expenseCategoryInput').value = getJsonValue(expense, 'CategoryId') ?? '';
+                document.getElementById('expenseAmountInput').value = getJsonValue(expense, 'Amount') ?? '';
+                document.getElementById('expenseDateInput').value = (getJsonValue(expense, 'ExpenseDate') ?? '').toString().substring(0, 10);
+                document.getElementById('expenseNotesInput').value = getJsonValue(expense, 'Notes') ?? '';
                 filterUnitsBySelectedProperty();
                 expenseModal.show();
             });

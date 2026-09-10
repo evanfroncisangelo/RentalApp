@@ -8,6 +8,7 @@ public class Unit
     public int PropertyId { get; set; }
     public string UnitNumber { get; set; } = string.Empty;
     public decimal MonthlyRent { get; set; }
+    public int MaxCapacity { get; set; } = 0;
     public UnitStatus Status { get; set; } = UnitStatus.Available;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

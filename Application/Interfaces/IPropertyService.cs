@@ -9,4 +9,5 @@ public interface IPropertyService
     Task<PropertyDto> CreateAsync(CreatePropertyRequestDto request, CancellationToken cancellationToken = default);
     Task<PropertyDto> UpdateAsync(int id, UpdatePropertyRequestDto request, CancellationToken cancellationToken = default);
     Task DeactivateAsync(int id, CancellationToken cancellationToken = default);
+    Task HardDeleteAsync(int id, CancellationToken cancellationToken = default);
 }

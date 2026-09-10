@@ -44,5 +44,12 @@ public class PropertiesController(IPropertyService propertyService) : Controller
         await propertyService.DeactivateAsync(id, cancellationToken);
         return NoContent();
     }
+
+    [HttpDelete("{id:int}/hard")]
+    public async Task<IActionResult> HardDelete(int id, CancellationToken cancellationToken)
+    {
+        await propertyService.HardDeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }
 

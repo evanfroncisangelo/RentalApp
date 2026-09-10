@@ -9,4 +9,5 @@ public interface IUnitService
     Task<UnitDto> CreateAsync(CreateUnitRequestDto request, CancellationToken cancellationToken = default);
     Task<UnitDto> UpdateAsync(int id, UpdateUnitRequestDto request, CancellationToken cancellationToken = default);
     Task DeactivateAsync(int id, CancellationToken cancellationToken = default);
+    Task HardDeleteAsync(int id, CancellationToken cancellationToken = default);
 }

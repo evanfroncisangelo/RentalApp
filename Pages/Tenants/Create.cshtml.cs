@@ -16,7 +16,6 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
     public InputModel Input { get; set; } = new();
 
     public List<SelectListItem> UnitOptions { get; private set; } = [];
-    public string SelectedUnitCapacity { get; private set; } = "-";
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -56,21 +55,27 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
         Input.UnitNumber = selectedUnit.UnitNumber;
         Input.RoomNumber = string.Empty; // No longer tracking rooms
 
-        await tenantService.CreateAsync(new CreateTenantRequestDto
+        try
         {
-            FirstName = Input.FirstName,
-            LastName = Input.LastName,
-            ContactNumber = Input.ContactNumber,
-            Email = Input.Email,
-            Address = Input.Address,
-            UnitId = selectedUnit.Id,
-            UnitNumber = Input.UnitNumber,
-            RoomNumber = Input.RoomNumber,
-            DateOfBirth = Input.DateOfBirth,
-            MoveInDate = Input.MoveInDate,
-            Notes = Input.Notes,
-            IsActive = Input.IsActive
-        }, cancellationToken);
+            await tenantService.CreateAsync(new CreateTenantRequestDto
+            {
+                FirstName = Input.FirstName,
+                LastName = Input.LastName,
+                ContactNumber = Input.ContactNumber,
+                Address = Input.Address,
+                UnitId = selectedUnit.Id,
+                UnitNumber = Input.UnitNumber,
+                RoomNumber = Input.RoomNumber,
+                MoveInDate = Input.MoveInDate,
+                Notes = Input.Notes,
+                IsActive = Input.IsActive
+            }, cancellationToken);
+        }
+        catch (RentalApp.Application.Exceptions.AppValidationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return Page();
+        }
 
         return RedirectToPage("/Tenants/Index");
     }
@@ -86,9 +91,6 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
         [MaxLength(30)]
         public string? ContactNumber { get; set; }
 
-        [EmailAddress, MaxLength(256)]
-        public string? Email { get; set; }
-
         [MaxLength(500)]
         public string? Address { get; set; }
 
@@ -101,9 +103,6 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
 
         [MaxLength(50)]
         public string? RoomNumber { get; set; }
-
-        [DataType(DataType.Date)]
-        public DateTime? DateOfBirth { get; set; }
 
         [DataType(DataType.Date)]
         [Display(Name = "Move In Date")]
@@ -137,31 +136,28 @@ public class CreateModel(ITenantService tenantService, IUnitService unitService)
             .ToList();
 
         UnitOptions = activeUnits
-            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned} tenants)", x.Unit.Id.ToString()))
+            .Where(x => x.Assigned < x.Unit.MaxCapacity)
+            .Select(x => new SelectListItem($"{x.Unit.PropertyName} - {x.Unit.UnitNumber} ({x.Assigned}/{x.Unit.MaxCapacity})", x.Unit.Id.ToString()))
             .ToList();
 
         if (!Input.UnitId.HasValue && UnitOptions.Count > 0 && int.TryParse(UnitOptions[0].Value, out var firstUnitId))
         {
             Input.UnitId = firstUnitId;
         }
-
-        var chosen = activeUnits.FirstOrDefault(x => x.Unit.Id == Input.UnitId);
-        if (chosen is null)
-        {
-            SelectedUnitCapacity = "-";
-            return;
-        }
-
-        SelectedUnitCapacity = $"{chosen.Assigned} tenants";
     }
 
     private async Task<bool> IsUnitAvailableAsync(int unitId, CancellationToken cancellationToken)
     {
         var units = await unitService.GetAllAsync(null, cancellationToken);
         var selectedUnit = units.FirstOrDefault(x => x.IsActive && x.Id == unitId);
+        if (selectedUnit is null)
+        {
+            return false;
+        }
 
-        // Units are always available now (no capacity limiting)
-        return selectedUnit is not null;
+        var allTenants = await tenantService.GetAllAsync(null, cancellationToken);
+        var assignedCount = allTenants.Count(x => x.IsActive && x.UnitId == unitId);
+        return assignedCount < selectedUnit.MaxCapacity;
     }
 
     private async Task<RentalApp.Application.DTOs.Units.UnitDto?> GetSelectedUnitAsync(int unitId, CancellationToken cancellationToken)

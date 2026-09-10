@@ -42,6 +42,11 @@ public class LoginModel(IAuthService authService) : PageModel
             await SignInAsync(response);
             return LocalRedirect(string.IsNullOrWhiteSpace(Input.ReturnUrl) ? "/Dashboard" : Input.ReturnUrl);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            ErrorMessage = "Login request was canceled. Please try again.";
+            return Page();
+        }
         catch (AppUnauthorizedException ex)
         {
             ErrorMessage = ex.Message;

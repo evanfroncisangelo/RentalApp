@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,79 +16,137 @@ public class CreateModel(IInvoiceService invoiceService, ILeaseService leaseServ
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public List<SelectListItem> LeaseOptions { get; private set; } = [];
     public List<SelectListItem> TenantOptions { get; private set; } = [];
     public List<SelectListItem> StatusOptions { get; private set; } = [];
+    public string TenantLeaseMapJson { get; private set; } = "[]";
+    public string SelectedLeaseLabel { get; private set; } = string.Empty;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        SeedItems();
         await LoadOptionsAsync(cancellationToken);
+        ApplyTenantLeaseDefaults();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        if (Input.Items.Count == 0)
-        {
-            SeedItems();
-        }
-
         await LoadOptionsAsync(cancellationToken);
+        ApplyTenantLeaseDefaults();
 
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
-        await invoiceService.CreateAsync(new CreateInvoiceRequestDto
+        if (Input.LeaseId <= 0)
+        {
+            ModelState.AddModelError(string.Empty, "Selected tenant has no active/ended lease.");
+            return Page();
+        }
+
+        var created = await invoiceService.CreateAsync(new CreateInvoiceRequestDto
         {
             TenantId = Input.TenantId,
             LeaseId = Input.LeaseId,
             InvoiceDate = Input.InvoiceDate,
             DueDate = Input.DueDate,
             Status = Input.Status,
-            Notes = Input.Notes,
-            Items = Input.Items.Select(x => new CreateInvoiceItemRequestDto { Description = x.Description, Amount = x.Amount }).ToList()
+            Notes = null
         }, cancellationToken);
 
-        return RedirectToPage("/Invoices/Index");
+        var pdfBytes = await invoiceService.GeneratePdfAsync(created.Id, cancellationToken);
+        return File(pdfBytes, "application/pdf", $"invoice-{created.InvoiceNumber}.pdf");
     }
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
     {
         var leases = await leaseService.GetAllAsync(cancellationToken);
-        LeaseOptions = leases.Select(x => new SelectListItem($"#{x.Id} - {x.TenantName} ({x.UnitNumber})", x.Id.ToString())).ToList();
+        var leaseOptions = leases
+            .Where(x => x.Status is LeaseStatus.Active or LeaseStatus.Ended)
+            .OrderBy(x => x.TenantName)
+            .ThenByDescending(x => x.StartDate)
+            .ToList();
 
         var tenants = await tenantService.GetAllAsync(null, cancellationToken);
-        TenantOptions = tenants.Where(x => x.IsActive).Select(x => new SelectListItem($"{x.FirstName} {x.LastName}", x.Id.ToString())).ToList();
+        TenantOptions = tenants
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.LastName)
+            .ThenBy(x => x.FirstName)
+            .Select(x => new SelectListItem($"{x.FirstName} {x.LastName}".Trim(), x.Id.ToString()))
+            .ToList();
 
-        StatusOptions = Enum.GetValues<InvoiceStatus>().Select(x => new SelectListItem(x.ToString(), x.ToString())).ToList();
+        var tenantLeaseMap = leaseOptions
+            .GroupBy(x => x.TenantId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(x => x.Status == LeaseStatus.Active)
+                    .ThenByDescending(x => x.StartDate)
+                    .Select(x => new TenantLeaseOption(
+                        x.Id,
+                        x.UnitNumber,
+                        x.Status.ToString(),
+                        x.StartDate.ToString("yyyy-MM-dd")))
+                    .ToList());
+
+        TenantLeaseMapJson = JsonSerializer.Serialize(tenantLeaseMap);
+
+        StatusOptions = Enum.GetValues<InvoiceStatus>()
+            .Select(x => new SelectListItem(x.ToString(), x.ToString()))
+            .ToList();
     }
 
-    private void SeedItems()
+    private void ApplyTenantLeaseDefaults()
     {
-        if (Input.Items.Count == 0)
+        if (string.IsNullOrWhiteSpace(TenantLeaseMapJson))
         {
-            Input.Items.Add(new ItemInputModel());
-            Input.Items.Add(new ItemInputModel());
-            Input.Items.Add(new ItemInputModel());
+            return;
         }
+
+        var map = JsonSerializer.Deserialize<Dictionary<int, List<TenantLeaseOption>>>(TenantLeaseMapJson)
+            ?? [];
+
+        if (Input.TenantId <= 0 && TenantOptions.Count > 0 && int.TryParse(TenantOptions[0].Value, out var firstTenantId))
+        {
+            Input.TenantId = firstTenantId;
+        }
+
+        if (Input.TenantId <= 0)
+        {
+            return;
+        }
+
+        if (!map.TryGetValue(Input.TenantId, out var leaseOptions) || leaseOptions.Count == 0)
+        {
+            Input.LeaseId = 0;
+            SelectedLeaseLabel = "No active/ended lease found for selected tenant.";
+            return;
+        }
+
+        if (!leaseOptions.Any(x => x.LeaseId == Input.LeaseId))
+        {
+            Input.LeaseId = leaseOptions[0].LeaseId;
+        }
+
+        var selected = leaseOptions.FirstOrDefault(x => x.LeaseId == Input.LeaseId) ?? leaseOptions[0];
+        SelectedLeaseLabel = $"Lease #{selected.LeaseId} - Unit {selected.UnitNumber} ({selected.LeaseStatus})";
     }
 
     public class InputModel
     {
-        [Required] public int TenantId { get; set; }
-        [Required] public int LeaseId { get; set; }
-        [DataType(DataType.Date)] public DateTime InvoiceDate { get; set; } = DateTime.UtcNow.Date;
-        [DataType(DataType.Date)] public DateTime DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);
+        [Range(1, int.MaxValue, ErrorMessage = "Tenant is required.")]
+        public int TenantId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Lease is required.")]
+        public int LeaseId { get; set; }
+
+        [DataType(DataType.Date)]
+        public DateTime InvoiceDate { get; set; } = DateTime.UtcNow.Date;
+
+        [DataType(DataType.Date)]
+        public DateTime DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);
+
         public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
-        public string? Notes { get; set; }
-        public List<ItemInputModel> Items { get; set; } = [];
     }
 
-    public class ItemInputModel
-    {
-        public string Description { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
-    }
+    public record TenantLeaseOption(int LeaseId, string UnitNumber, string LeaseStatus, string StartDate);
 }

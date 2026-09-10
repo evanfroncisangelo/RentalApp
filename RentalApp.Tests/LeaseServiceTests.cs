@@ -138,6 +138,7 @@ public class LeaseServiceTests
                 PropertyId = property.Id,
                 UnitNumber = "U-1",
                 MonthlyRent = 5000m,
+                MaxCapacity = 1,
                 Status = UnitStatus.Available,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,

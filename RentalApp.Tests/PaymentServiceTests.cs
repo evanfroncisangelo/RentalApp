@@ -94,6 +94,7 @@ public class PaymentServiceTests
                 PropertyId = property.Id,
                 UnitNumber = "U-1",
                 MonthlyRent = 5000m,
+                MaxCapacity = 3,
                 Status = UnitStatus.Occupied,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,

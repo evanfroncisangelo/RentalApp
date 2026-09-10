@@ -78,6 +78,30 @@ public class PropertyService(RentalDbContext dbContext) : IPropertyService
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task HardDeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var property = await dbContext.Properties
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new AppNotFoundException("Property not found.");
+
+        var hasUnits = await dbContext.Units
+            .AsNoTracking()
+            .AnyAsync(x => x.PropertyId == id, cancellationToken);
+
+        if (hasUnits)
+        {
+            throw new AppValidationException("Cannot delete property while units exist under it.");
+        }
+
+        var propertyExpenses = await dbContext.Expenses
+            .Where(x => x.PropertyId == id)
+            .ToListAsync(cancellationToken);
+        dbContext.Expenses.RemoveRange(propertyExpenses);
+
+        dbContext.Properties.Remove(property);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private static PropertyDto ToDto(Property entity) => new()
     {
         Id = entity.Id,

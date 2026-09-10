@@ -35,7 +35,7 @@ public class GenerateModel(IInvoiceService invoiceService, ILeaseService leaseSe
             LeaseId = Input.LeaseId,
             InvoiceDate = Input.InvoiceDate,
             DueDate = Input.DueDate,
-            Notes = Input.Notes
+            Notes = null
         }, cancellationToken);
 
         return RedirectToPage("/Invoices/Details", new { id = invoice.Id });
@@ -52,6 +52,5 @@ public class GenerateModel(IInvoiceService invoiceService, ILeaseService leaseSe
         [Required] public int LeaseId { get; set; }
         [DataType(DataType.Date)] public DateTime? InvoiceDate { get; set; } = DateTime.UtcNow.Date;
         [DataType(DataType.Date)] public DateTime? DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);
-        public string? Notes { get; set; }
     }
 }

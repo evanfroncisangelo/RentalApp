@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model RentalApp.Pages.Units.IndexModel
 @{
     ViewData["Title"] = "Units";
@@ -25,8 +25,7 @@
                 <th>Property</th>
                 <th>Unit</th>
                 <th>Monthly Rent</th>
-                <th>Rooms</th>
-                <th>Max/Room</th>
+                <th>Max Capacity</th>
                 <th>Status</th>
                 <th>Active</th>
                 <th class="text-end">Actions</th>
@@ -39,14 +38,16 @@
                     <td>@item.PropertyName</td>
                     <td>@item.UnitNumber</td>
                     <td>@item.MonthlyRent.ToString("N2")</td>
+                    <td>@item.MaxCapacity</td>
                     <td>@item.Status</td>
                     <td>@(item.IsActive ? "Yes" : "No")</td>
                     <td class="text-end">
                         <a class="btn btn-sm btn-outline-secondary" asp-page="/Units/Edit" asp-route-id="@item.Id">Edit</a>
+                        <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Unit" onclick="hardDeleteUnit(@item.Id)">X</button>
                         @if (item.IsActive)
                         {
                             <form method="post" asp-page-handler="Deactivate" asp-route-id="@item.Id" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this unit?');">Deactivate</button>
+                                <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Deactivate this unit?');">Deactivate</button>
                             </form>
                         }
                     </td>
@@ -63,3 +64,26 @@
     TotalPages = Model.PagedItems.TotalPages,
     RouteValues = new Dictionary<string, string>()
 })" />
+
+@section Scripts {
+    <script>
+        window.hardDeleteUnit = async function (unitId) {
+            if (!confirm('Permanently delete this unit and all related records?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/units/${unitId}/hard`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to delete unit right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Delete Unit');
+                return;
+            }
+
+            window.location.reload();
+        }
+    </script>
+}
+

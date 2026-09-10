@@ -9,6 +9,7 @@ public class UnitDto
     public string PropertyName { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
     public decimal MonthlyRent { get; set; }
+    public int MaxCapacity { get; set; }
     public UnitStatus Status { get; set; }
     public bool IsActive { get; set; }
 }

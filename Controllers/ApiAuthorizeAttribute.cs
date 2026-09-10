@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 
@@ -8,6 +9,8 @@ public sealed class ApiAuthorizeAttribute : AuthorizeAttribute
 {
     public ApiAuthorizeAttribute()
     {
-        AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme;
+        AuthenticationSchemes = string.Join(",",
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            JwtBearerDefaults.AuthenticationScheme);
     }
 }

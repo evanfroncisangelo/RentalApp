@@ -314,18 +314,22 @@ public class UtilityPaymentService(
             return await action();
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(async () =>
         {
-            var result = await action();
-            await transaction.CommitAsync(cancellationToken);
-            return result;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var result = await action();
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     private static UtilityBillPaymentDto ToDto(UtilityBillPayment entity)

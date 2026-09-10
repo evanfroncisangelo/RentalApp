@@ -40,7 +40,7 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
 
         var collectedRent = await dbContext.Payments
             .AsNoTracking()
-            .Where(x => x.PaymentDate >= from && x.PaymentDate < to && x.PaymentType == PaymentType.Rent)
+            .Where(x => x.DueDate >= from && x.DueDate < to && x.PaymentType == PaymentType.Rent)
             .SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
 
         var totalExpenses = await dbContext.Expenses
@@ -107,7 +107,9 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
         var payments = await dbContext.Payments
             .AsNoTracking()
             .Include(x => x.Unit)
-            .Where(x => x.PaymentDate >= from && x.PaymentDate < to)
+            .Where(x =>
+                (x.PaymentType == PaymentType.Rent && x.DueDate >= from && x.DueDate < to) ||
+                (x.PaymentType == PaymentType.Deposit && x.PaymentDate >= from && x.PaymentDate < to))
             .ToListAsync(cancellationToken);
 
         var rows = new Dictionary<string, ApartmentTenantDashboardRowDto>(StringComparer.OrdinalIgnoreCase);
@@ -127,15 +129,16 @@ public class DashboardService(RentalDbContext dbContext) : IDashboardService
                 rows[label] = row;
             }
 
-            var month = payment.PaymentDate.Month;
             if (payment.PaymentType == PaymentType.Deposit)
             {
-                row.DepositByMonth[month] = row.DepositByMonth.GetValueOrDefault(month) + payment.Amount;
+                var paidMonth = payment.PaymentDate.Month;
+                row.DepositByMonth[paidMonth] = row.DepositByMonth.GetValueOrDefault(paidMonth) + payment.Amount;
                 row.TotalDeposit += payment.Amount;
             }
             else
             {
-                row.RentByMonth[month] = row.RentByMonth.GetValueOrDefault(month) + payment.Amount;
+                var dueMonth = payment.DueDate.Month;
+                row.RentByMonth[dueMonth] = row.RentByMonth.GetValueOrDefault(dueMonth) + payment.Amount;
                 row.TotalRent += payment.Amount;
             }
         }

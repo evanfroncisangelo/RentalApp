@@ -37,6 +37,7 @@ public class CreateModel(IUnitService unitService, IPropertyService propertyServ
             PropertyId = Input.PropertyId,
             UnitNumber = Input.UnitNumber,
             MonthlyRent = Input.MonthlyRent,
+            MaxCapacity = Input.MaxCapacity,
             Status = Input.Status
         }, cancellationToken);
 
@@ -69,6 +70,10 @@ public class CreateModel(IUnitService unitService, IPropertyService propertyServ
         [Range(0, 100000000)]
         [Display(Name = "Monthly Rent")]
         public decimal MonthlyRent { get; set; }
+
+        [Range(0, 1000)]
+        [Display(Name = "Max Capacity")]
+        public int MaxCapacity { get; set; } = 0;
 
         public UnitStatus Status { get; set; } = UnitStatus.Available;
     }

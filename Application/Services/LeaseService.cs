@@ -92,7 +92,7 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
             var unit = await dbContext.Units.FirstOrDefaultAsync(x => x.Id == request.UnitId && x.IsActive, cancellationToken)
                 ?? throw new AppValidationException("Unit does not exist or is inactive.");
 
-            var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
+            _ = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == request.RoomId && x.UnitId == request.UnitId && x.IsActive, cancellationToken)
                 ?? throw new AppValidationException("Selected room is invalid for this unit.");
 
             _ = await dbContext.Tenants.FirstOrDefaultAsync(x => x.Id == request.TenantId && x.IsActive, cancellationToken)
@@ -107,13 +107,15 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
                 throw new AppValidationException("Tenant already has an active unit/room lease.");
             }
 
-            var currentOccupancy = await dbContext.Leases.CountAsync(
-                x => x.RoomId == room.Id && x.Status == LeaseStatus.Active,
-                cancellationToken);
+            var currentOccupancy = await dbContext.Leases
+                .Where(x => x.UnitId == unit.Id && x.Status == LeaseStatus.Active)
+                .Select(x => x.TenantId)
+                .Distinct()
+                .CountAsync(cancellationToken);
 
-            if (currentOccupancy >= room.MaxCapacity)
+            if (currentOccupancy >= unit.MaxCapacity)
             {
-                throw new AppValidationException("Selected room is already at maximum capacity.");
+                throw new AppValidationException("Selected unit is already at maximum capacity.");
             }
 
             var lease = new Lease
@@ -289,34 +291,16 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
             return;
         }
 
-        var rooms = await dbContext.Rooms
-            .AsNoTracking()
-            .Where(x => x.UnitId == unitId && x.IsActive)
-            .Select(x => new { x.Id, x.MaxCapacity })
-            .ToListAsync(cancellationToken);
-
-        if (rooms.Count == 0)
-        {
-            unit.Status = UnitStatus.Available;
-            unit.UpdatedAt = DateTime.UtcNow;
-            return;
-        }
-
-        var activeCountsByRoom = await dbContext.Leases
+        var activeTenantCount = await dbContext.Leases
             .AsNoTracking()
             .Where(x => x.UnitId == unitId && x.Status == LeaseStatus.Active)
-            .GroupBy(x => x.RoomId)
-            .Select(g => new { RoomId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
+            .Select(x => x.TenantId)
+            .Distinct()
+            .CountAsync(cancellationToken);
 
-        var occupancyMap = activeCountsByRoom.ToDictionary(x => x.RoomId, x => x.Count);
-        var allRoomsOccupied = rooms.All(room =>
-        {
-            var occupiedCount = occupancyMap.TryGetValue(room.Id, out var count) ? count : 0;
-            return occupiedCount >= room.MaxCapacity;
-        });
-
-        unit.Status = allRoomsOccupied ? UnitStatus.Occupied : UnitStatus.Available;
+        unit.Status = activeTenantCount >= unit.MaxCapacity
+            ? UnitStatus.Occupied
+            : UnitStatus.Available;
         unit.UpdatedAt = DateTime.UtcNow;
     }
 
@@ -328,18 +312,22 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
             return await action();
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(async () =>
         {
-            var result = await action();
-            await transaction.CommitAsync(cancellationToken);
-            return result;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var result = await action();
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     private static void ValidateLeaseDates(DateTime startDate, DateTime? endDate)

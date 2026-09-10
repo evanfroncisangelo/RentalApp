@@ -73,16 +73,28 @@ Required repository secrets:
 
 ## 10. GitHub Actions Deployment
 Workflow: `.github/workflows/deploy.yml`
-Pipeline order:
-1. Checkout
-2. Restore
-3. Build (Release)
-4. Test (Release)
-5. Publish (Release)
-6. Remove development/private artifacts
-7. Deploy via WebDeploy
 
-Deployment is blocked if restore/build/test/publish fails.
+Production deployment triggers:
+- Automatic on semantic version tag push matching `v*.*.*`.
+- Manual via `workflow_dispatch` with required `release_tag` input.
+- Tag format is validated with `^v\d+\.\d+\.\d+$` before deployment.
+
+Pipeline order:
+1. Resolve and validate deployment tag
+2. Checkout exact tag
+3. Restore
+4. Build (Release)
+5. Test (Release)
+6. Publish (Release)
+7. Remove development/private artifacts
+8. Verify `publish/RentalApp.dll` exists
+9. Deploy via WebDeploy
+
+Deployment is blocked if restore/build/test/publish/verification fails.
+
+Rollback strategy:
+- Re-run the workflow manually with a previously known-good semantic tag.
+- This redeploys the selected application version without changing Git history.
 
 ## 11. Database Backup
 - Do not depend on application HTTP endpoints for production backup operations.

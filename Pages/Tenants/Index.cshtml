@@ -11,7 +11,7 @@
 
 <form method="get" class="filter-bar row g-2 align-items-end">
     <div class="col-md-6">
-        <input asp-for="Search" class="form-control" placeholder="Search by name, contact, or email" />
+        <input asp-for="Search" class="form-control" placeholder="Search by name or contact" />
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-outline-primary">Search</button>
@@ -24,8 +24,8 @@
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Move In Date</th>
                     <th>Contact</th>
-                    <th>Email</th>
                     <th>Unit</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
@@ -44,8 +44,8 @@
                     {
                         <tr>
                             <td>@item.FirstName @item.LastName</td>
-                            <td>@item.ContactNumber</td>
-                            <td>@item.Email</td>
+                            <td>@(item.MoveInDate.HasValue ? item.MoveInDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.ContactNumber) ? "-" : item.ContactNumber)</td>
                             <td>@(string.IsNullOrWhiteSpace(item.UnitNumber) ? "-" : item.UnitNumber)</td>
                             <td>
                                 <span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">

@@ -65,6 +65,7 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
 
             entity.Property(x => x.UnitNumber).HasMaxLength(50).IsRequired();
             entity.Property(x => x.MonthlyRent).HasColumnType("decimal(18,2)").IsRequired();
+            entity.Property(x => x.MaxCapacity).IsRequired();
             entity.Property(x => x.Status).IsRequired();
             entity.Property(x => x.IsActive).IsRequired();
             entity.Property(x => x.CreatedAt).IsRequired();
@@ -103,7 +104,6 @@ public class RentalDbContext(DbContextOptions<RentalDbContext> options) : DbCont
             entity.Property(x => x.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(x => x.LastName).HasMaxLength(100).IsRequired();
             entity.Property(x => x.ContactNumber).HasMaxLength(30);
-            entity.Property(x => x.Email).HasMaxLength(256);
             entity.Property(x => x.Address).HasMaxLength(500);
             entity.Property(x => x.UnitId);
             entity.Property(x => x.UnitNumber).HasMaxLength(50);

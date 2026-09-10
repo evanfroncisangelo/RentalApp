@@ -25,17 +25,10 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label asp-for="Input.ContactNumber" class="form-label"></label>
-            <input asp-for="Input.ContactNumber" class="form-control" />
-            <span asp-validation-for="Input.ContactNumber" class="text-danger"></span>
-        </div>
-        <div class="col-md-6 mb-3">
-            <label asp-for="Input.Email" class="form-label"></label>
-            <input asp-for="Input.Email" class="form-control" />
-            <span asp-validation-for="Input.Email" class="text-danger"></span>
-        </div>
+    <div class="mb-3">
+        <label asp-for="Input.ContactNumber" class="form-label"></label>
+        <input asp-for="Input.ContactNumber" class="form-control" />
+        <span asp-validation-for="Input.ContactNumber" class="text-danger"></span>
     </div>
 
     <div class="mb-3">
@@ -44,39 +37,23 @@
         <span asp-validation-for="Input.Address" class="text-danger"></span>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label asp-for="Input.DateOfBirth" class="form-label"></label>
-            <input asp-for="Input.DateOfBirth" class="form-control" type="date" />
-            <span asp-validation-for="Input.DateOfBirth" class="text-danger"></span>
-        </div>
-        <div class="col-md-6 mb-3">
-            <label asp-for="Input.MoveInDate" class="form-label"></label>
-            <input asp-for="Input.MoveInDate" class="form-control" type="date" />
-            <span asp-validation-for="Input.MoveInDate" class="text-danger"></span>
-        </div>
+    <div class="mb-3">
+        <label asp-for="Input.MoveInDate" class="form-label"></label>
+        <input asp-for="Input.MoveInDate" class="form-control" type="date" />
+        <span asp-validation-for="Input.MoveInDate" class="text-danger"></span>
     </div>
 
-    <!-- Unit and Capacity Section - Lower in form -->
     <div class="card card-sm mb-3">
         <div class="card-header bg-light">
             <h6 class="mb-0">Unit Assignment</h6>
         </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label asp-for="Input.UnitId" class="form-label"></label>
-                    <select asp-for="Input.UnitId" asp-items="Model.UnitOptions" class="form-select" id="unitNumberSelect">
-                        <option value="">Select Unit</option>
-                    </select>
-                    <div class="form-text">Only units with available capacity are shown.</div>
-                    <span asp-validation-for="Input.UnitId" class="text-danger"></span>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Max Capacity</label>
-                    <input type="number" class="form-control" id="unitCapacityDisplay" value="@Model.SelectedUnitCapacity" readonly />
-                    <div class="form-text">Current occupancy / max capacity for selected unit.</div>
-                </div>
+            <div class="mb-3">
+                <label asp-for="Input.UnitId" class="form-label"></label>
+                <select asp-for="Input.UnitId" asp-items="Model.UnitOptions" class="form-select">
+                    <option value="">Select Unit</option>
+                </select>
+                <span asp-validation-for="Input.UnitId" class="text-danger"></span>
             </div>
 
             <div class="row">
@@ -102,20 +79,4 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        (function () {
-            const unitSelect = document.getElementById('unitNumberSelect');
-            const capacityDisplay = document.getElementById('unitCapacityDisplay');
-            if (!unitSelect || !capacityDisplay) return;
-
-            function updateCapacityDisplay() {
-                const text = unitSelect.options[unitSelect.selectedIndex]?.text || '';
-                const match = text.match(/\((\d+\/\d+)\)$/);
-                capacityDisplay.value = match ? match[1] : '-';
-            }
-
-            unitSelect.addEventListener('change', updateCapacityDisplay);
-            updateCapacityDisplay();
-        })();
-    </script>
 }

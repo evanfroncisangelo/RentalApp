@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model RentalApp.Pages.PropertiesUnits.IndexModel
 @using System.Text.Json
 @{
@@ -46,6 +46,7 @@
                         <div class="btn-group" role="group">
                             <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditPropertyModal(@Html.Raw(JsonSerializer.Serialize(property)))'>Edit</button>
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="openAddUnitModal(@property.Id)">+ Add Unit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Property" onclick="hardDeleteProperty(@property.Id)">X</button>
                         </div>
                     </td>
                 </tr>
@@ -77,29 +78,21 @@
                                         {
                                             @foreach (var unit in propertyUnits)
                                             {
-                                                var unitRoomsCollapseId = $"unit-rooms-{property.Id}-{unit.Id}";
-
                                                 <tr>
                                                     <td>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary unit-toggle" data-bs-toggle="collapse" data-bs-target="#@unitRoomsCollapseId" aria-expanded="false" aria-controls="@unitRoomsCollapseId">View Capacity</button>
-                                                        <span class="ms-2">@unit.UnitNumber</span>
+                                                        <span>@unit.UnitNumber</span>
                                                     </td>
                                                     <td>@unit.MonthlyRent.ToString("N2")</td>
+                                                    <td>@unit.MaxCapacity</td>
                                                     <td>@(unit.IsActive ? unit.Status.ToString() : "Inactive")</td>
                                                     <td class="text-end">
                                                         <div class="btn-group" role="group">
                                                             <button type="button" class="btn btn-sm btn-outline-secondary" onclick='openEditUnitModal(@Html.Raw(JsonSerializer.Serialize(unit)))'>Edit</button>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Unit" onclick="hardDeleteUnit(@unit.Id)">X</button>
                                                         </div>
                                                     </td>
                                                 </tr>
 
-                                                <tr class="collapse unit-collapse" id="@unitRoomsCollapseId">
-                                                    <td colspan="4" class="bg-white">
-                                                        <div class="px-2 py-1">
-                                                            <p class="text-muted mb-0">No room capacity tracking for this unit.</p>
-                                                        </div>
-                                                    </td>
-                                                </tr>
                                             }
                                         }
                                     </tbody>
@@ -173,17 +166,14 @@
                         <label class="form-label">Unit Number</label>
                         <input class="form-control" id="unitNumber" required maxlength="50" />
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Monthly Rent</label>
-                            <input type="number" step="0.01" min="0" class="form-control" id="unitMonthlyRent" required />
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Max Capacity</label>
-                            <input type="number" min="1" class="form-control" id="unitRoomMaxCapacity" required />
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monthly Rent</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="unitMonthlyRent" required />
                     </div>
-                    <input type="hidden" id="unitRoomCount" value="1" />
+                    <div class="mb-3">
+                        <label class="form-label" for="unitMaxCapacity">Max Capacity</label>
+                        <input type="number" step="1" min="0" inputmode="numeric" class="form-control" id="unitMaxCapacity" required />
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Status</label>
                         <select class="form-select" id="unitStatus">
@@ -263,6 +253,64 @@
             el.classList.add('d-none');
         }
 
+        function getUnitStatusValue(status) {
+            if (typeof status === 'number' && Number.isFinite(status)) {
+                return String(status);
+            }
+
+            const normalizedStatus = String(status ?? '').trim();
+            if (/^\d+$/.test(normalizedStatus)) {
+                return normalizedStatus;
+            }
+
+            const statusMap = { Available: '1', Occupied: '2', Maintenance: '3', Inactive: '4' };
+            return statusMap[normalizedStatus] ?? '1';
+        }
+
+        function buildUnitPayload() {
+            const propertyId = Number(document.getElementById('unitPropertyId').value);
+            const unitNumberInput = document.getElementById('unitNumber');
+            const unitMonthlyRentInput = document.getElementById('unitMonthlyRent');
+            const unitMaxCapacityInput = document.getElementById('unitMaxCapacity');
+            const unitNumber = unitNumberInput.value.trim();
+            const monthlyRentRaw = unitMonthlyRentInput.value.trim().replace(/,/g, '');
+            const monthlyRent = Number(monthlyRentRaw);
+            const maxCapacityRaw = unitMaxCapacityInput.value.trim();
+            const maxCapacity = Number(maxCapacityRaw);
+
+            if (!Number.isInteger(propertyId) || propertyId <= 0) {
+                showError('unitModalError', 'Property is required.');
+                return null;
+            }
+
+            if (!unitNumber) {
+                showError('unitModalError', 'Unit name is required.');
+                return null;
+            }
+
+            if (!monthlyRentRaw || !Number.isFinite(monthlyRent) || monthlyRent < 0) {
+                showError('unitModalError', 'Monthly rent must be a valid amount.');
+                return null;
+            }
+
+            if (!maxCapacityRaw || !Number.isInteger(maxCapacity) || maxCapacity < 0) {
+                showError('unitModalError', 'Max capacity must be a whole number zero or greater.');
+                return null;
+            }
+
+            unitNumberInput.value = unitNumber;
+            unitMonthlyRentInput.value = monthlyRentRaw;
+            unitMaxCapacityInput.value = String(maxCapacity);
+
+            return {
+                propertyId,
+                unitNumber,
+                monthlyRent,
+                maxCapacity,
+                status: Number(document.getElementById('unitStatus').value)
+            };
+        }
+
         window.openAddPropertyModal = function () {
             clearError('propertyModalError');
             document.getElementById('propertyModalTitle').textContent = 'Add Property';
@@ -291,8 +339,7 @@
             document.getElementById('unitPropertyId').value = propertyId;
             document.getElementById('unitNumber').value = '';
             document.getElementById('unitMonthlyRent').value = '';
-            document.getElementById('unitRoomCount').value = '1';
-            document.getElementById('unitRoomMaxCapacity').value = '3';
+            document.getElementById('unitMaxCapacity').value = '0';
             document.getElementById('unitStatus').value = '1';
             document.getElementById('unitDescription').value = '';
             unitModal.show();
@@ -305,10 +352,8 @@
             document.getElementById('unitPropertyId').value = unit.PropertyId;
             document.getElementById('unitNumber').value = unit.UnitNumber ?? '';
             document.getElementById('unitMonthlyRent').value = unit.MonthlyRent ?? 0;
-            document.getElementById('unitRoomCount').value = unit.RoomCount ?? 1;
-            document.getElementById('unitRoomMaxCapacity').value = unit.RoomMaxCapacity ?? 3;
-            const statusMap = { 'Available': '1', 'Occupied': '2', 'Maintenance': '3', 'Inactive': '4' };
-            document.getElementById('unitStatus').value = statusMap[unit.Status] ?? '1';
+            document.getElementById('unitMaxCapacity').value = unit.MaxCapacity ?? 0;
+            document.getElementById('unitStatus').value = getUnitStatusValue(unit.Status);
             document.getElementById('unitDescription').value = unit.Description ?? '';
             unitModal.show();
         }
@@ -344,8 +389,8 @@
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                showError('propertyModalError', text || 'Failed to save property.');
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to save property right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Save Property');
                 return;
             }
 
@@ -361,15 +406,11 @@
             if (selectedPropertyId) {
                 sessionStorage.setItem(propertiesOpenStorageKey, selectedPropertyId);
             }
-            const payload = {
-                propertyId: Number(document.getElementById('unitPropertyId').value),
-                unitNumber: document.getElementById('unitNumber').value,
-                monthlyRent: Number(document.getElementById('unitMonthlyRent').value),
-                roomCount: Number(document.getElementById('unitRoomCount').value),
-                roomMaxCapacity: Number(document.getElementById('unitRoomMaxCapacity').value),
-                status: Number(document.getElementById('unitStatus').value),
-                description: document.getElementById('unitDescription').value
-            };
+
+            const payload = buildUnitPayload();
+            if (!payload) {
+                return;
+            }
 
             const response = await fetch(id ? `/api/units/${id}` : '/api/units', {
                 method: id ? 'PUT' : 'POST',
@@ -378,12 +419,48 @@
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                showError('unitModalError', text || 'Failed to save unit.');
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to save unit right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Save Unit');
                 return;
             }
 
             location.reload();
         });
+
+        window.hardDeleteProperty = async function (propertyId) {
+            if (!confirm('Permanently delete this property and all related unit records?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/properties/${propertyId}/hard`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to delete property right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Delete Property');
+                return;
+            }
+
+            location.reload();
+        }
+
+        window.hardDeleteUnit = async function (unitId) {
+            if (!confirm('Permanently delete this unit and all related records?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/units/${unitId}/hard`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const friendlyMessage = await window.getFriendlyErrorMessage(response, 'Unable to delete unit right now. Please try again.');
+                window.showFriendlyErrorModal(friendlyMessage, 'Delete Unit');
+                return;
+            }
+
+            location.reload();
+        }
     </script>
 }

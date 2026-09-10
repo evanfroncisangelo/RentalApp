@@ -19,7 +19,9 @@
         <div class="col-md-6 mb-3"><label asp-for="Input.DueDate" class="form-label"></label><input asp-for="Input.DueDate" class="form-control" /></div>
     </div>
 
-    <div class="mb-3"><label asp-for="Input.Notes" class="form-label"></label><textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea></div>
+    <div class="alert alert-info">
+        Invoice items are auto-generated from saved connected records for the selected lease.
+    </div>
 
     <div class="d-flex justify-content-end gap-2">
         <a class="btn btn-outline-secondary" asp-page="/Invoices/Index">Cancel</a>

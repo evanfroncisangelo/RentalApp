@@ -30,7 +30,7 @@
 
                 <nav class="app-sidebar-nav">
                     <a class="app-nav-link @(isDashboard ? "active" : null)" asp-page="/Dashboard/Index">Dashboard</a>
-                    <a class="app-nav-link @(isPayments ? "active" : null)" asp-page="/ApartmentTenants/Index">Payments</a>
+                    <a class="app-nav-link @(isPayments ? "active" : null)" asp-page="/ApartmentTenants/Index">Properties & Payments</a>
                     <a class="app-nav-link @(isTenants ? "active" : null)" asp-page="/Tenants/Index">Tenants</a>
                     <a class="app-nav-link @(isExpenses ? "active" : null)" asp-page="/Expenses/Index">Expenses</a>
                     <a class="app-nav-link @(isUtilities ? "active" : null)" asp-page="/Utilities/Index">Utilities</a>
@@ -93,6 +93,81 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        window.getFriendlyErrorMessage = async function (response, fallbackMessage) {
+            const friendlyMessageByExactMatch = {
+                "Cannot delete unit with active tenants.": "Cannot delete this unit because it still has active tenants.",
+                "Cannot delete property while units exist under it.": "Cannot delete this property because it still has units assigned.",
+                "Selected unit is already at maximum capacity.": "This unit is already full. Please choose another unit.",
+                "Selected unit does not exist or is inactive.": "The selected unit is no longer available. Please choose another unit.",
+                "Selected property does not exist or is inactive.": "The selected property is no longer available. Please refresh and try again."
+            };
+
+            let message = "";
+
+            try {
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const json = await response.json();
+                    message = (json?.message || json?.Message || '').toString().trim();
+                }
+                else {
+                    message = (await response.text() || '').toString().trim();
+                }
+            }
+            catch {
+                message = "";
+            }
+
+            if (!message) {
+                return fallbackMessage;
+            }
+
+            return friendlyMessageByExactMatch[message] || fallbackMessage;
+        };
+
+        window.showFriendlyErrorModal = function (message, title) {
+            const modalId = 'globalFriendlyErrorModal';
+            let modalElement = document.getElementById(modalId);
+
+            if (!modalElement) {
+                modalElement = document.createElement('div');
+                modalElement.id = modalId;
+                modalElement.className = 'modal fade';
+                modalElement.tabIndex = -1;
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="globalFriendlyErrorModalTitle"></h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-0" id="globalFriendlyErrorModalMessage"></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.appendChild(modalElement);
+            }
+
+            const titleElement = document.getElementById('globalFriendlyErrorModalTitle');
+            const messageElement = document.getElementById('globalFriendlyErrorModalMessage');
+
+            if (titleElement) {
+                titleElement.textContent = title || 'Unable to complete request';
+            }
+
+            if (messageElement) {
+                messageElement.textContent = message || 'Please try again.';
+            }
+
+            bootstrap.Modal.getOrCreateInstance(modalElement).show();
+        };
+
         (function () {
             const toggle = document.getElementById('appSidebarToggle');
             const root = document.getElementById('appLayoutRoot');

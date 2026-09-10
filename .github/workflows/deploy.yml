@@ -2,9 +2,14 @@ name: Build Test Publish Deploy
 
 on:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Semantic version tag to deploy (example: v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,12 +19,37 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     concurrency:
-      group: production-deploy-${{ github.ref }}
+      group: production-deploy-${{ github.workflow }}-${{ github.ref_name }}
       cancel-in-progress: true
 
     steps:
-      - name: Checkout
+      - name: Resolve deployment tag
+        id: resolve_ref
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $deployRef = '${{ github.event.inputs.release_tag }}'
+          }
+          else {
+            $deployRef = '${{ github.ref_name }}'
+          }
+
+          if ([string]::IsNullOrWhiteSpace($deployRef)) {
+            throw "A release tag is required for deployment."
+          }
+
+          if ($deployRef -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Invalid release tag format '$deployRef'. Expected semantic version: v<major>.<minor>.<patch>."
+          }
+
+          "deploy_ref=$deployRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Checkout tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve_ref.outputs.deploy_ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -43,8 +73,15 @@ jobs:
         run: |
           if (Test-Path ./publish/appsettings.Development.json) { Remove-Item ./publish/appsettings.Development.json -Force }
           if (Test-Path ./publish/appsettings.Local.json) { Remove-Item ./publish/appsettings.Local.json -Force }
-          Get-ChildItem ./publish -Recurse -File -Include *.bak,*.tmp | Remove-Item -Force -ErrorAction SilentlyContinue
+          Get-ChildItem ./publish -Recurse -File -Include *.bak,*.tmp,*.db,*.db-shm,*.db-wal,*.sqlite,*.sqlite3 | Remove-Item -Force -ErrorAction SilentlyContinue
           Get-ChildItem ./publish -Directory -Recurse | Where-Object { $_.Name -in @('App_Data','backups','logs','uploads','.git','.github') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Verify publish output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "./publish/RentalApp.dll")) {
+            throw "Expected publish artifact './publish/RentalApp.dll' was not found."
+          }
 
       - name: Deploy to MonsterASP via Web Deploy (IIS)
         shell: pwsh
@@ -55,14 +92,19 @@ jobs:
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           WEBDEPLOY_ALLOW_UNTRUSTED: ${{ secrets.WEBDEPLOY_ALLOW_UNTRUSTED }}
         run: |
+          $ErrorActionPreference = 'Stop'
+
           $msDeployPaths = @(
             "${env:ProgramFiles}\IIS\Microsoft Web Deploy V3\msdeploy.exe",
             "${env:ProgramFiles(x86)}\IIS\Microsoft Web Deploy V3\msdeploy.exe"
           )
 
-          $msdeploy = $msDeployPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          $msdeploy = $msDeployPaths |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+
           if (-not $msdeploy) {
-            throw "msdeploy.exe is not available on the GitHub runner. Install Web Deploy or switch deployment strategy."
+            throw "msdeploy.exe is not available on the GitHub runner."
           }
 
           if ([string]::IsNullOrWhiteSpace($env:WEBSITE_NAME) -or
@@ -72,19 +114,32 @@ jobs:
             throw "Deployment secrets are incomplete. Required: WEBSITE_NAME, SERVER_COMPUTER_NAME, SERVER_USERNAME, SERVER_PASSWORD."
           }
 
-          $sourcePath = (Resolve-Path ./publish).Path
+          if (-not (Test-Path "./publish")) {
+            throw "Publish directory './publish' was not found."
+          }
 
-          $args = @(
-            '-verb:sync',
-            "-source:contentPath=`"$sourcePath`"",
-            "-dest:contentPath=`"$env:WEBSITE_NAME`",computerName=`"$env:SERVER_COMPUTER_NAME`",userName=`"$env:SERVER_USERNAME`",password=`"$env:SERVER_PASSWORD`",authType=`"Basic`"",
-            '-retryAttempts:2',
-            '-retryInterval:3000'
+          $sourcePath = (Resolve-Path "./publish").Path
+
+          Write-Host "Using WebDeploy executable discovered on runner."
+          Write-Host "Deploying release tag ${{ steps.resolve_ref.outputs.deploy_ref }}."
+
+          $deployArgs = @(
+            "-verb:sync"
+            "-source:contentPath=$sourcePath"
+            "-dest:contentPath=$env:WEBSITE_NAME,computerName=$env:SERVER_COMPUTER_NAME,userName=$env:SERVER_USERNAME,password=$env:SERVER_PASSWORD,authType=Basic"
+            "-retryAttempts:2"
+            "-retryInterval:3000"
           )
 
           if ($env:WEBDEPLOY_ALLOW_UNTRUSTED -eq 'true') {
-            $args += '-allowUntrusted'
-            Write-Host 'WebDeploy is configured to allow untrusted certificates for this target.'
+            $deployArgs += "-allowUntrusted"
+            Write-Host "WebDeploy is configured to allow untrusted certificates for this target."
           }
 
-          & $msdeploy @args
+          & $msdeploy @deployArgs
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "WebDeploy failed with exit code $LASTEXITCODE."
+          }
+
+          Write-Host "WebDeploy completed successfully."

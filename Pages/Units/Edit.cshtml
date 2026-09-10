@@ -28,6 +28,12 @@
     </div>
 
     <div class="mb-3">
+        <label asp-for="Input.MaxCapacity" class="form-label">Max Capacity</label>
+        <input asp-for="Input.MaxCapacity" type="number" step="1" min="0" inputmode="numeric" class="form-control" />
+        <span asp-validation-for="Input.MaxCapacity" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
         <label asp-for="Input.Status" class="form-label"></label>
         <select asp-for="Input.Status" asp-items="Model.StatusOptions" class="form-select"></select>
     </div>

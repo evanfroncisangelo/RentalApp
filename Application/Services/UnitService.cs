@@ -64,21 +64,22 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
     public async Task<UnitDto> CreateAsync(CreateUnitRequestDto request, CancellationToken cancellationToken = default)
     {
-        var propertyExists = await dbContext.Properties.AnyAsync(x => x.Id == request.PropertyId && x.IsActive, cancellationToken);
-        if (!propertyExists)
-        {
-            throw new AppValidationException("Selected property does not exist or is inactive.");
-        }
+        var normalizedUnitNumber = await ValidateAndNormalizeAsync(request.PropertyId, request.UnitNumber, request.MonthlyRent, request.MaxCapacity, null, cancellationToken);
 
         var entity = new Unit
         {
             PropertyId = request.PropertyId,
-            UnitNumber = request.UnitNumber.Trim(),
+            UnitNumber = normalizedUnitNumber,
             MonthlyRent = request.MonthlyRent,
+            MaxCapacity = request.MaxCapacity,
             Status = request.Status,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            Rooms =
+            [
+                CreateDefaultRoom()
+            ]
         };
 
         dbContext.Units.Add(entity);
@@ -89,19 +90,16 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
 
     public async Task<UnitDto> UpdateAsync(int id, UpdateUnitRequestDto request, CancellationToken cancellationToken = default)
     {
-        var propertyExists = await dbContext.Properties.AnyAsync(x => x.Id == request.PropertyId && x.IsActive, cancellationToken);
-        if (!propertyExists)
-        {
-            throw new AppValidationException("Selected property does not exist or is inactive.");
-        }
+        var normalizedUnitNumber = await ValidateAndNormalizeAsync(request.PropertyId, request.UnitNumber, request.MonthlyRent, request.MaxCapacity, id, cancellationToken);
 
         var entity = await dbContext.Units
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppNotFoundException("Unit not found.");
 
         entity.PropertyId = request.PropertyId;
-        entity.UnitNumber = request.UnitNumber.Trim();
+        entity.UnitNumber = normalizedUnitNumber;
         entity.MonthlyRent = request.MonthlyRent;
+        entity.MaxCapacity = request.MaxCapacity;
         entity.Status = request.Status;
         entity.UpdatedAt = DateTime.UtcNow;
 
@@ -122,41 +120,148 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task ValidateAsync(int propertyId, int roomCount, int roomMaxCapacity, CancellationToken cancellationToken)
+    public async Task HardDeleteAsync(int id, CancellationToken cancellationToken = default)
     {
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+            var entity = await dbContext.Units
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new AppNotFoundException("Unit not found.");
+
+            var hasActiveTenants = await dbContext.Tenants
+                .AsNoTracking()
+                .AnyAsync(x => x.IsActive && x.UnitId == id, cancellationToken);
+
+            if (hasActiveTenants)
+            {
+                throw new AppValidationException("Cannot delete unit with active tenants.");
+            }
+
+            var leaseIds = await dbContext.Leases
+                .Where(x => x.UnitId == id)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+
+            if (leaseIds.Count > 0)
+            {
+                var invoiceIds = await dbContext.Invoices
+                    .Where(x => leaseIds.Contains(x.LeaseId))
+                    .Select(x => x.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (invoiceIds.Count > 0)
+                {
+                    var invoiceItems = await dbContext.InvoiceItems
+                        .Where(x => invoiceIds.Contains(x.InvoiceId))
+                        .ToListAsync(cancellationToken);
+                    dbContext.InvoiceItems.RemoveRange(invoiceItems);
+
+                    var invoices = await dbContext.Invoices
+                        .Where(x => invoiceIds.Contains(x.Id))
+                        .ToListAsync(cancellationToken);
+                    dbContext.Invoices.RemoveRange(invoices);
+                }
+
+                var leasePayments = await dbContext.Payments
+                    .Where(x => leaseIds.Contains(x.LeaseId))
+                    .ToListAsync(cancellationToken);
+                dbContext.Payments.RemoveRange(leasePayments);
+
+                var leases = await dbContext.Leases
+                    .Where(x => leaseIds.Contains(x.Id))
+                    .ToListAsync(cancellationToken);
+                dbContext.Leases.RemoveRange(leases);
+            }
+
+            var directUnitPayments = await dbContext.Payments
+                .Where(x => x.UnitId == id)
+                .ToListAsync(cancellationToken);
+            dbContext.Payments.RemoveRange(directUnitPayments);
+
+            var expenses = await dbContext.Expenses
+                .Where(x => x.UnitId == id)
+                .ToListAsync(cancellationToken);
+            dbContext.Expenses.RemoveRange(expenses);
+
+            var assignedTenants = await dbContext.Tenants
+                .Where(x => x.UnitId == id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var tenant in assignedTenants)
+            {
+                tenant.UnitId = null;
+                tenant.UnitNumber = null;
+                tenant.RoomNumber = null;
+                tenant.UpdatedAt = DateTime.UtcNow;
+            }
+
+            var rooms = await dbContext.Rooms
+                .Where(x => x.UnitId == id)
+                .ToListAsync(cancellationToken);
+            dbContext.Rooms.RemoveRange(rooms);
+
+            dbContext.Units.Remove(entity);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
+
+    private async Task<string> ValidateAndNormalizeAsync(int propertyId, string? unitNumber, decimal monthlyRent, int maxCapacity, int? existingUnitId, CancellationToken cancellationToken)
+    {
+        if (propertyId <= 0)
+        {
+            throw new AppValidationException("Property is required.");
+        }
+
+        var normalizedUnitNumber = unitNumber?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedUnitNumber))
+        {
+            throw new AppValidationException("Unit name is required.");
+        }
+
+        if (monthlyRent < 0)
+        {
+            throw new AppValidationException("Monthly rent cannot be negative.");
+        }
+
+        if (maxCapacity < 0)
+        {
+            throw new AppValidationException("Unit max capacity cannot be negative.");
+        }
+
         var propertyExists = await dbContext.Properties.AnyAsync(x => x.Id == propertyId && x.IsActive, cancellationToken);
         if (!propertyExists)
         {
             throw new AppValidationException("Selected property does not exist or is inactive.");
         }
 
-        if (roomCount < 1)
+        var duplicateExists = await dbContext.Units.AnyAsync(
+            x => x.PropertyId == propertyId
+                && x.UnitNumber == normalizedUnitNumber
+                && (!existingUnitId.HasValue || x.Id != existingUnitId.Value),
+            cancellationToken);
+
+        if (duplicateExists)
         {
-            throw new AppValidationException("Room count is required and must be at least 1.");
+            throw new AppValidationException("A unit with the same name already exists for this property.");
         }
 
-        if (roomMaxCapacity < 1 || roomMaxCapacity > 3)
-        {
-            throw new AppValidationException("Room max capacity must be between 1 and 3 tenants.");
-        }
+        return normalizedUnitNumber;
     }
 
-    private static List<Room> BuildRoomList(int count, int capacity)
+    private static Room CreateDefaultRoom()
     {
-        var rooms = new List<Room>(count);
-        for (var i = 1; i <= count; i++)
+        return new Room
         {
-            rooms.Add(new Room
-            {
-                RoomNumber = $"Room {i}",
-                MaxCapacity = capacity,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-        }
-
-        return rooms;
+            RoomNumber = "Default Room",
+            MaxCapacity = 999,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     private static UnitDto ToDto(Unit entity, IReadOnlyDictionary<int, int> activeTenantCountsByUnit)
@@ -168,6 +273,7 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
             PropertyName = entity.Property?.Name ?? string.Empty,
             UnitNumber = entity.UnitNumber,
             MonthlyRent = entity.MonthlyRent,
+            MaxCapacity = entity.MaxCapacity,
             Status = entity.Status,
             IsActive = entity.IsActive
         };

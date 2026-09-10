@@ -46,10 +46,10 @@ public class InvoiceService(
     {
         return await ExecuteInTransactionAsync(async () =>
         {
-            await ValidateLeaseTenantAsync(request.LeaseId, request.TenantId, cancellationToken);
+            var lease = await ValidateLeaseTenantAsync(request.LeaseId, request.TenantId, cancellationToken);
             ValidateDates(request.InvoiceDate, request.DueDate);
 
-            var items = NormalizeItems(request.Items);
+            var items = await BuildStaticItemsFromConnectedRecordsAsync(lease, request.TenantId, cancellationToken);
             var subtotal = items.Sum(x => x.Amount);
             var invoiceNumber = await invoiceNumberGenerator.GenerateAsync(cancellationToken);
 
@@ -87,19 +87,11 @@ public class InvoiceService(
 
             ValidateDates(request.InvoiceDate, request.DueDate);
 
-            var normalizedItems = NormalizeItems(request.Items);
-            var subtotal = normalizedItems.Sum(x => x.Amount);
-
             invoice.InvoiceDate = request.InvoiceDate.Date;
             invoice.DueDate = request.DueDate.Date;
             invoice.Status = request.Status;
             invoice.Notes = request.Notes?.Trim();
-            invoice.Subtotal = subtotal;
-            invoice.Total = subtotal;
             invoice.UpdatedAt = DateTime.UtcNow;
-
-            dbContext.InvoiceItems.RemoveRange(invoice.Items);
-            invoice.Items = normalizedItems;
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -130,15 +122,7 @@ public class InvoiceService(
             InvoiceDate = invoiceDate,
             DueDate = dueDate,
             Status = InvoiceStatus.Issued,
-            Notes = request.Notes,
-            Items =
-            [
-                new CreateInvoiceItemRequestDto
-                {
-                    Description = $"Monthly Rent ({invoiceDate:MMMM yyyy})",
-                    Amount = lease.MonthlyRent
-                }
-            ]
+            Notes = request.Notes
         };
 
         return await CreateAsync(createRequest, cancellationToken);
@@ -150,10 +134,11 @@ public class InvoiceService(
         return invoicePdfRenderer.Render(invoice);
     }
 
-    private async Task ValidateLeaseTenantAsync(int leaseId, int tenantId, CancellationToken cancellationToken)
+    private async Task<Lease> ValidateLeaseTenantAsync(int leaseId, int tenantId, CancellationToken cancellationToken)
     {
         var lease = await dbContext.Leases
             .AsNoTracking()
+            .Include(x => x.Unit)
             .FirstOrDefaultAsync(x => x.Id == leaseId, cancellationToken)
             ?? throw new AppValidationException("Lease does not exist.");
 
@@ -161,35 +146,34 @@ public class InvoiceService(
         {
             throw new AppValidationException("Tenant does not match selected lease.");
         }
+
+        return lease;
     }
 
     private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
     {
-        var ownsTransaction = dbContext.Database.CurrentTransaction is null &&
-            !string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal);
-        await using var transaction = ownsTransaction
-            ? await dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken)
-            : null;
-
-        try
+        if (dbContext.Database.CurrentTransaction is not null ||
+            string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal))
         {
-            var result = await action();
-            if (transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
-
-            return result;
+            return await action();
         }
-        catch
+
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(async () =>
         {
-            if (transaction is not null)
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+            try
+            {
+                var result = await action();
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
             {
                 await transaction.RollbackAsync(cancellationToken);
+                throw;
             }
-
-            throw;
-        }
+        });
     }
 
     private static void ValidateDates(DateTime invoiceDate, DateTime dueDate)
@@ -200,24 +184,78 @@ public class InvoiceService(
         }
     }
 
-    private static List<InvoiceItem> NormalizeItems(IEnumerable<CreateInvoiceItemRequestDto> items)
+    private async Task<List<InvoiceItem>> BuildStaticItemsFromConnectedRecordsAsync(Lease lease, int tenantId, CancellationToken cancellationToken)
     {
-        var normalized = items
-            .Where(x => !string.IsNullOrWhiteSpace(x.Description))
-            .Select(x => new InvoiceItem
+        var rentAndDepositPayments = await dbContext.Payments
+            .AsNoTracking()
+            .Where(x => x.LeaseId == lease.Id && x.TenantId == tenantId && x.UnitId == lease.UnitId)
+            .OrderBy(x => x.DueDate)
+            .ThenBy(x => x.PaymentDate)
+            .ThenBy(x => x.Id)
+            .Select(x => new
             {
-                Description = x.Description.Trim(),
-                Amount = x.Amount
+                x.PaymentType,
+                x.DueDate,
+                x.PaymentDate,
+                x.Amount
             })
-            .Where(x => x.Amount > 0)
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        if (normalized.Count == 0)
+        var utilityBills = await dbContext.UtilityBills
+            .AsNoTracking()
+            .Include(x => x.UtilityType)
+            .Include(x => x.UtilityCustomer)
+                .ThenInclude(x => x!.Room)
+            .Where(x =>
+                x.Status != UtilityBillStatus.Cancelled &&
+                x.UtilityCustomer != null &&
+                (
+                    x.UtilityCustomer.TenantId == tenantId ||
+                    (x.UtilityCustomer.Room != null && x.UtilityCustomer.Room.UnitId == lease.UnitId)
+                ))
+            .OrderBy(x => x.DueDate ?? DateTime.MaxValue)
+            .ThenBy(x => x.BillingPeriod)
+            .ThenBy(x => x.Id)
+            .Select(x => new
+            {
+                UtilityTypeName = x.UtilityType != null ? x.UtilityType.Name : "Utility",
+                x.BillingPeriod,
+                x.Amount,
+                x.Status
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = new List<InvoiceItem>();
+
+        foreach (var payment in rentAndDepositPayments)
         {
-            throw new AppValidationException("Invoice must contain at least one item with amount greater than zero.");
+            var paymentTypeText = payment.PaymentType == PaymentType.Deposit ? "Deposit" : "Rent";
+            items.Add(new InvoiceItem
+            {
+                Description = $"{paymentTypeText} Payment ({payment.DueDate:MMM yyyy})",
+                Amount = payment.Amount
+            });
         }
 
-        return normalized;
+        foreach (var bill in utilityBills)
+        {
+            var billingPeriodText = string.IsNullOrWhiteSpace(bill.BillingPeriod)
+                ? "N/A"
+                : bill.BillingPeriod;
+
+            items.Add(new InvoiceItem
+            {
+                Description = $"{bill.UtilityTypeName} Bill ({billingPeriodText})",
+                Amount = bill.Amount
+            });
+        }
+
+        if (items.Count == 0)
+        {
+            throw new AppValidationException("No connected payment or utility records were found for the selected tenant and lease.");
+        }
+
+        return items;
     }
 
     private static InvoiceDto ToDto(Invoice entity) => new()
