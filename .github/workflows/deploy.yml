@@ -83,63 +83,13 @@ jobs:
             throw "Expected publish artifact './publish/RentalApp.dll' was not found."
           }
 
-      - name: Deploy to MonsterASP via Web Deploy (IIS)
-        shell: pwsh
-        env:
-          WEBSITE_NAME: ${{ secrets.WEBSITE_NAME }}
-          SERVER_COMPUTER_NAME: ${{ secrets.SERVER_COMPUTER_NAME }}
-          SERVER_USERNAME: ${{ secrets.SERVER_USERNAME }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          WEBDEPLOY_ALLOW_UNTRUSTED: ${{ secrets.WEBDEPLOY_ALLOW_UNTRUSTED }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          $msDeployPaths = @(
-            "${env:ProgramFiles}\IIS\Microsoft Web Deploy V3\msdeploy.exe",
-            "${env:ProgramFiles(x86)}\IIS\Microsoft Web Deploy V3\msdeploy.exe"
-          )
-
-          $msdeploy = $msDeployPaths |
-            Where-Object { Test-Path $_ } |
-            Select-Object -First 1
-
-          if (-not $msdeploy) {
-            throw "msdeploy.exe is not available on the GitHub runner."
-          }
-
-          if ([string]::IsNullOrWhiteSpace($env:WEBSITE_NAME) -or
-              [string]::IsNullOrWhiteSpace($env:SERVER_COMPUTER_NAME) -or
-              [string]::IsNullOrWhiteSpace($env:SERVER_USERNAME) -or
-              [string]::IsNullOrWhiteSpace($env:SERVER_PASSWORD)) {
-            throw "Deployment secrets are incomplete. Required: WEBSITE_NAME, SERVER_COMPUTER_NAME, SERVER_USERNAME, SERVER_PASSWORD."
-          }
-
-          if (-not (Test-Path "./publish")) {
-            throw "Publish directory './publish' was not found."
-          }
-
-          $sourcePath = (Resolve-Path "./publish").Path
-
-          Write-Host "Using WebDeploy executable discovered on runner."
-          Write-Host "Deploying release tag ${{ steps.resolve_ref.outputs.deploy_ref }}."
-
-          $deployArgs = @(
-            "-verb:sync"
-            "-source:contentPath=$sourcePath"
-            "-dest:contentPath=$env:WEBSITE_NAME,computerName=$env:SERVER_COMPUTER_NAME,userName=$env:SERVER_USERNAME,password=$env:SERVER_PASSWORD,authType=Basic"
-            "-retryAttempts:2"
-            "-retryInterval:3000"
-          )
-
-          if ($env:WEBDEPLOY_ALLOW_UNTRUSTED -eq 'true') {
-            $deployArgs += "-allowUntrusted"
-            Write-Host "WebDeploy is configured to allow untrusted certificates for this target."
-          }
-
-          & $msdeploy @deployArgs
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "WebDeploy failed with exit code $LASTEXITCODE."
-          }
-
-          Write-Host "WebDeploy completed successfully."
+      - name: Deploy to MonsterASP via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}/
+          local-dir: ./publish/
+          protocol: ftp
+          port: 21
