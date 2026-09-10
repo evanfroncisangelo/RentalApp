@@ -103,6 +103,16 @@ public class UnitService(RentalDbContext dbContext) : IUnitService
         entity.Status = request.Status;
         entity.UpdatedAt = DateTime.UtcNow;
 
+        var tenantsToSync = await dbContext.Tenants
+            .Where(x => x.UnitId == entity.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var tenant in tenantsToSync)
+        {
+            tenant.UnitNumber = normalizedUnitNumber;
+            tenant.UpdatedAt = DateTime.UtcNow;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetByIdAsync(entity.Id, cancellationToken);

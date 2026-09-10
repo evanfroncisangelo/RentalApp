@@ -34,6 +34,10 @@
 
                 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                     <div class="d-flex align-items-center gap-3 small">
+                        @if (Model.ShowRegisterButton)
+                        {
+                            <a asp-page="/Auth/Register" class="login-link">Register account</a>
+                        }
                     </div>
                     <button type="submit" class="btn btn-primary px-4">Login</button>
                 </div>

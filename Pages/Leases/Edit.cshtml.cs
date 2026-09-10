@@ -132,7 +132,7 @@ public class EditModel(ILeaseService leaseService, IUnitService unitService) : P
         [Display(Name = "Security Deposit")]
         public decimal SecurityDeposit { get; set; }
 
-        [Range(1, 28)]
+        [Range(1, 31)]
         [Display(Name = "Due Day")]
         public int DueDayOfMonth { get; set; }
 

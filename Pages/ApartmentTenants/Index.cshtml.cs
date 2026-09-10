@@ -566,7 +566,8 @@ public class IndexModel(
 
     private static DateTime ResolveDueDate(DateTime date, int dueDayOfMonth)
     {
-        var day = Math.Clamp(dueDayOfMonth, 1, 28);
+        var normalizedDay = Math.Clamp(dueDayOfMonth, 1, 31);
+        var day = Math.Min(normalizedDay, DateTime.DaysInMonth(date.Year, date.Month));
         return new DateTime(date.Year, date.Month, day);
     }
 
@@ -585,7 +586,7 @@ public class IndexModel(
             return new PaymentScheduleViewModel
             {
                 StartDate = tenantMoveInDate.Value,
-                DueDayOfMonth = Math.Clamp(tenantMoveInDate.Value.Day, 1, 28),
+                DueDayOfMonth = Math.Clamp(tenantMoveInDate.Value.Day, 1, 31),
                 MonthlyRent = lease?.MonthlyRent ?? unit.MonthlyRent
             };
         }
@@ -598,7 +599,7 @@ public class IndexModel(
         return new PaymentScheduleViewModel
         {
             StartDate = lease.StartDate.Date,
-            DueDayOfMonth = Math.Clamp(lease.DueDayOfMonth, 1, 28),
+            DueDayOfMonth = Math.Clamp(lease.DueDayOfMonth, 1, 31),
             MonthlyRent = lease.MonthlyRent
         };
     }

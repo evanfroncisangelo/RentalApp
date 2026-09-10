@@ -340,9 +340,9 @@ public class LeaseService(RentalDbContext dbContext) : ILeaseService
 
     private static void ValidateDueDay(int dueDay)
     {
-        if (dueDay < 1 || dueDay > 28)
+        if (dueDay < 1 || dueDay > 31)
         {
-            throw new AppValidationException("Due day must be between 1 and 28.");
+            throw new AppValidationException("Due day must be between 1 and 31.");
         }
     }
 

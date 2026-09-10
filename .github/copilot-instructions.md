@@ -16,6 +16,7 @@
 - User does not want the prior truncate/reset request treated as a standing preference or remembered instruction.
 - User wants tenancy assignment behavior to be based only on Unit max capacity: no room creation and no room-based assignment; if unit is full, adding a tenant to that unit must be blocked.
 - MaxCapacity default value must be 0, and MaxCapacity input must be present in Add Unit and Edit Unit modal flows.
+- User prefers registration limit behavior to be UI-only (hide register button) and does not want backend registration to throw when user count exceeds 3.
 
 ## Utilities Module Guidelines
 - Use BillingPeriod month key format (YYYY-MM).

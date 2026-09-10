@@ -175,7 +175,7 @@ public class TenantService(RentalDbContext dbContext, ILeaseService leaseService
             ?? throw new AppValidationException("Assigned unit does not exist.");
 
         var leaseStartDate = (tenant.MoveInDate ?? DateTime.UtcNow.Date).Date;
-        var dueDayOfMonth = Math.Clamp(leaseStartDate.Day, 1, 28);
+        var dueDayOfMonth = Math.Clamp(leaseStartDate.Day, 1, 31);
         var activeLease = await dbContext.Leases
             .AsNoTracking()
             .Where(x => x.TenantId == tenant.Id && x.Status == LeaseStatus.Active)

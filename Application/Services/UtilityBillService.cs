@@ -32,12 +32,6 @@ public class UtilityBillService(RentalDbContext dbContext) : IUtilityBillService
                 var periodKey = $"{periodCursor:yyyy-MM}";
                 var dueDate = ResolveDueDate(customer, periodCursor, periodKey);
 
-                if (dueDate.HasValue && dueDate.Value.Date > today)
-                {
-                    periodCursor = periodCursor.AddMonths(1);
-                    continue;
-                }
-
                 var exists = await dbContext.UtilityBills.AnyAsync(
                     x => x.UtilityCustomerId == customer.Id
                          && x.UtilityTypeId == utilityTypeId
@@ -147,18 +141,22 @@ public class UtilityBillService(RentalDbContext dbContext) : IUtilityBillService
     {
         if (customer.DueDateRuleType == UtilityDueDateRuleType.FixedDayOfMonth)
         {
-            if (!customer.DueDayOfMonth.HasValue)
-            {
-                return null;
-            }
-
             if (!DateOnly.TryParse($"{billingPeriod}-01", out var periodStart))
             {
                 throw new AppValidationException("Invalid billing period format.");
             }
 
-            var dueDay = customer.DueDayOfMonth.Value;
-            var dueDate = new DateTime(periodStart.Year, periodStart.Month, dueDay);
+            var dueDay = customer.DueDayOfMonth
+                ?? customer.UtilityStartDate?.Day;
+
+            if (!dueDay.HasValue)
+            {
+                return null;
+            }
+
+            var normalizedDueDay = Math.Clamp(dueDay.Value, 1, 31);
+            var resolvedDay = Math.Min(normalizedDueDay, DateTime.DaysInMonth(periodStart.Year, periodStart.Month));
+            var dueDate = new DateTime(periodStart.Year, periodStart.Month, resolvedDay);
 
             return dueDate.Date;
         }

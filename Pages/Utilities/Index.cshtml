@@ -56,14 +56,11 @@
         <table class="table app-grid table-striped align-middle mb-0">
         <thead>
             <tr>
-                <th>Name</th>
+                <th>Name / Unit</th>
                 <th>Customer Type</th>
-                <th>Tenant Name</th>
-                <th>Unit</th>
                 <th>Utility Category</th>
                 <th>Start Date</th>
                 <th>Amount to Pay</th>
-                <th>Due Day</th>
                 <th style="width: 110px;" class="text-end">Payments</th>
             </tr>
         </thead>
@@ -71,7 +68,7 @@
             @if (Model.Customers.Count == 0)
             {
                 <tr>
-                    <td colspan="9" class="text-center text-muted">No utility customers yet.</td>
+                    <td colspan="6" class="text-center text-muted">No utility customers yet.</td>
                 </tr>
             }
             else
@@ -79,14 +76,11 @@
                 foreach (var customer in Model.Customers)
                 {
                     <tr>
-                        <td>@customer.Name</td>
+                        <td>@(customer.CustomerType == RentalApp.Domain.Enums.UtilityCustomerType.Tenant ? (string.IsNullOrWhiteSpace(customer.RoomLabel) ? "None" : customer.RoomLabel) : customer.Name)</td>
                         <td>@customer.CustomerType</td>
-                        <td>@(string.IsNullOrWhiteSpace(customer.TenantName) ? "None" : customer.TenantName)</td>
-                        <td>@(string.IsNullOrWhiteSpace(customer.RoomLabel) ? "None" : customer.RoomLabel)</td>
                         <td>@(string.IsNullOrWhiteSpace(customer.CategoryName) ? "None" : customer.CategoryName)</td>
                         <td>@(customer.UtilityStartDate?.ToString("MMM-dd-yyyy") ?? "-")</td>
                         <td>@(customer.AmountToPay?.ToString("N2") ?? "-")</td>
-                        <td>@(customer.DueDayOfMonth?.ToString() ?? "-")</td>
                         <td class="text-end">
                             <div class="d-inline-flex gap-1 justify-content-end">
                                 <button type="button" class="btn btn-sm btn-outline-secondary utility-payments-toggle" data-bs-toggle="collapse" data-bs-target="#payments-@customer.Id" aria-expanded="@(Model.ExpandedCustomerId == customer.Id ? "true" : "false")" aria-controls="payments-@customer.Id">Payments</button>
@@ -96,7 +90,7 @@
                     </tr>
 
                     <tr class="collapse @(Model.ExpandedCustomerId == customer.Id ? "show" : null)" id="payments-@customer.Id" data-customer-id="@customer.Id">
-                        <td colspan="9" class="bg-light">
+                        <td colspan="6" class="bg-light">
                             <div class="p-2">
                                 <strong class="d-block mb-2">Payment Transaction History</strong>
 
@@ -297,7 +291,7 @@
                     <input asp-for="Input.Id" type="hidden" id="customerIdInput" />
 
                     <div class="row">
-                        <div class="col-md-6 mb-2">
+                        <div class="col-md-6 mb-2" id="customerNameGroup">
                             <label asp-for="Input.Name" class="form-label"></label>
                             <input asp-for="Input.Name" class="form-control" id="customerNameInput" />
                             <span asp-validation-for="Input.Name" class="text-danger"></span>
@@ -309,35 +303,27 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <label asp-for="Input.TenantId" class="form-label">Tenant Name</label>
-                            <select asp-for="Input.TenantId" asp-items="Model.TenantOptions" class="form-select" id="customerTenantInput"></select>
-                        </div>
-                        <div class="col-md-4 mb-2">
+                        <div class="col-md-6 mb-2" id="customerRoomGroup">
                             <label asp-for="Input.RoomId" class="form-label">Unit</label>
                             <select asp-for="Input.RoomId" asp-items="Model.RoomOptions" class="form-select" id="customerRoomInput"></select>
+                            <span asp-validation-for="Input.RoomId" class="text-danger"></span>
                         </div>
-                        <div class="col-md-4 mb-2">
+                        <div class="col-md-6 mb-2">
                             <label asp-for="Input.UtilityCategoryId" class="form-label">Utility Category</label>
                             <select asp-for="Input.UtilityCategoryId" asp-items="Model.CategoryOptions" class="form-select" id="customerCategoryInput"></select>
                         </div>
                     </div>
 
                     <div class="row">
-                        <div class="col-md-4 mb-2">
+                        <div class="col-md-6 mb-2">
                             <label asp-for="Input.UtilityStartDate" class="form-label">Utility Start Date</label>
                             <input asp-for="Input.UtilityStartDate" class="form-control" type="date" id="customerStartDateInput" />
                             <span asp-validation-for="Input.UtilityStartDate" class="text-danger"></span>
                         </div>
-                        <div class="col-md-4 mb-2">
+                        <div class="col-md-6 mb-2">
                             <label asp-for="Input.AmountToPay" class="form-label">Amount to Pay</label>
                             <input asp-for="Input.AmountToPay" class="form-control" type="number" min="0.01" step="0.01" id="customerAmountInput" />
                             <span asp-validation-for="Input.AmountToPay" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label asp-for="Input.DueDayOfMonth" class="form-label">Due Date (Day of Month)</label>
-                            <input asp-for="Input.DueDayOfMonth" class="form-control" type="number" min="1" max="28" id="customerDueDayInput" />
-                            <span asp-validation-for="Input.DueDayOfMonth" class="text-danger"></span>
                         </div>
                     </div>
                 </div>
@@ -358,86 +344,69 @@
         const addUtilityPaymentModal = new bootstrap.Modal(document.getElementById('addUtilityPaymentModal'));
 
         const customerTypeInput = document.getElementById('customerTypeInput');
-        const customerTenantInput = document.getElementById('customerTenantInput');
+        const customerNameInput = document.getElementById('customerNameInput');
+        const customerNameGroup = document.getElementById('customerNameGroup');
         const customerRoomInput = document.getElementById('customerRoomInput');
+        const customerRoomGroup = document.getElementById('customerRoomGroup');
         const customerCategoryInput = document.getElementById('customerCategoryInput');
+        const customerStartDateInput = document.getElementById('customerStartDateInput');
 
-        const tenantDefaultRoomMap = @Html.Raw(JsonSerializer.Serialize(Model.TenantDefaultRoomMap));
+        const roomMoveInDateMap = @Html.Raw(JsonSerializer.Serialize(Model.RoomMoveInDateMap));
 
-        function isExternalOrOther(customerTypeValue) {
-            return customerTypeValue === '3' || customerTypeValue === '4';
+        function isExternal(customerTypeValue) {
+            return customerTypeValue === '@((int)RentalApp.Domain.Enums.UtilityCustomerType.External)';
         }
 
         function applyCustomerTypeRules() {
-            const customerType = customerTypeInput.value;
-            const disableTenantRoom = isExternalOrOther(customerType);
+            const external = isExternal(customerTypeInput.value);
 
-            customerTenantInput.disabled = disableTenantRoom;
-            customerRoomInput.disabled = disableTenantRoom;
+            customerNameGroup.classList.toggle('d-none', !external);
+            customerRoomGroup.classList.toggle('d-none', external);
 
-            if (disableTenantRoom) {
-                customerTenantInput.value = '';
+            customerNameInput.disabled = !external;
+            customerRoomInput.disabled = external;
+
+            if (external) {
                 customerRoomInput.value = '';
+            } else {
+                customerNameInput.value = '';
             }
         }
 
-        function applyTenantRoomRulesFromTenantSelection() {
-            const tenantId = customerTenantInput.value;
-            if (!tenantId) {
-                customerRoomInput.disabled = false;
+        function applyRoomBasedStartDate(force = false) {
+            if (isExternal(customerTypeInput.value)) {
                 return;
             }
 
-            if (tenantDefaultRoomMap[tenantId] != null) {
-                customerRoomInput.value = tenantDefaultRoomMap[tenantId].toString();
-            }
-
-            customerRoomInput.disabled = true;
-        }
-
-        function applyTenantRoomRulesFromRoomSelection() {
             const roomId = customerRoomInput.value;
-            if (roomId) {
-                customerTenantInput.value = '';
-                customerTenantInput.disabled = true;
+            if (!roomId) {
                 return;
             }
 
-            if (!isExternalOrOther(customerTypeInput.value)) {
-                customerTenantInput.disabled = false;
+            if (!force && customerStartDateInput.value) {
+                return;
+            }
+
+            const moveInDate = roomMoveInDateMap[roomId];
+            if (moveInDate) {
+                customerStartDateInput.value = moveInDate.toString().substring(0, 10);
             }
         }
 
         function applyAllRules() {
             applyCustomerTypeRules();
-
-            if (!isExternalOrOther(customerTypeInput.value)) {
-                if (customerTenantInput.value) {
-                    applyTenantRoomRulesFromTenantSelection();
-                }
-                else if (customerRoomInput.value) {
-                    applyTenantRoomRulesFromRoomSelection();
-                }
-                else {
-                    customerTenantInput.disabled = false;
-                    customerRoomInput.disabled = false;
-                }
-            }
+            applyRoomBasedStartDate();
         }
 
         function resetCustomerModal() {
             document.getElementById('customerModalTitle').textContent = 'Add Utility Customer';
             document.getElementById('customerIdInput').value = '0';
-            document.getElementById('customerNameInput').value = '';
-            customerTypeInput.value = '4';
-            customerTenantInput.value = '';
+            customerTypeInput.value = '@((int)RentalApp.Domain.Enums.UtilityCustomerType.Tenant)';
+            customerNameInput.value = '';
             customerRoomInput.value = '';
             customerCategoryInput.value = '';
-            document.getElementById('customerStartDateInput').value = '';
+            customerStartDateInput.value = '';
             document.getElementById('customerAmountInput').value = '';
-            document.getElementById('customerDueDayInput').value = '';
-            customerTenantInput.disabled = false;
-            customerRoomInput.disabled = false;
             applyAllRules();
         }
 
@@ -445,20 +414,8 @@
             applyAllRules();
         });
 
-        customerTenantInput?.addEventListener('change', () => {
-            if (customerTenantInput.value) {
-                applyTenantRoomRulesFromTenantSelection();
-                customerTenantInput.disabled = false;
-            } else {
-                customerRoomInput.disabled = false;
-            }
-        });
-
         customerRoomInput?.addEventListener('change', () => {
-            applyTenantRoomRulesFromRoomSelection();
-            if (!customerRoomInput.value && !isExternalOrOther(customerTypeInput.value)) {
-                customerTenantInput.disabled = false;
-            }
+            applyRoomBasedStartDate(true);
         });
 
         document.getElementById('openCategoryModalBtn')?.addEventListener('click', () => {
@@ -476,16 +433,12 @@
                 const customer = JSON.parse(this.dataset.customer);
                 document.getElementById('customerModalTitle').textContent = 'Edit Utility Customer';
                 document.getElementById('customerIdInput').value = customer.Id ?? customer.id ?? 0;
-                document.getElementById('customerNameInput').value = customer.Name ?? customer.name ?? '';
-                customerTypeInput.value = ((customer.CustomerType ?? customer.customerType ?? 4)).toString();
-                customerTenantInput.value = customer.TenantId ?? customer.tenantId ?? '';
+                customerNameInput.value = customer.Name ?? customer.name ?? '';
+                customerTypeInput.value = ((customer.CustomerType ?? customer.customerType ?? @((int)RentalApp.Domain.Enums.UtilityCustomerType.Tenant))).toString();
                 customerRoomInput.value = customer.RoomId ?? customer.roomId ?? '';
                 customerCategoryInput.value = customer.UtilityCategoryId ?? customer.utilityCategoryId ?? '';
-                document.getElementById('customerStartDateInput').value = (customer.UtilityStartDate ?? customer.utilityStartDate ?? '').toString().substring(0, 10);
+                customerStartDateInput.value = (customer.UtilityStartDate ?? customer.utilityStartDate ?? '').toString().substring(0, 10);
                 document.getElementById('customerAmountInput').value = customer.AmountToPay ?? customer.amountToPay ?? customer.DefaultRate ?? customer.defaultRate ?? '';
-                document.getElementById('customerDueDayInput').value = customer.DueDayOfMonth ?? customer.dueDayOfMonth ?? '';
-                customerTenantInput.disabled = false;
-                customerRoomInput.disabled = false;
                 applyAllRules();
                 customerModal.show();
             });

@@ -401,7 +401,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" type="submit">Save Payment</button>
+                    <button class="btn btn-primary" type="submit" id="addPaymentSubmitButton">Save Payment</button>
                 </div>
             </form>
         </div>
@@ -560,7 +560,7 @@
 
                     <div class="mb-2">
                         <label asp-for="AddDepositInput.Amount" class="form-label">Deposit</label>
-                        <input asp-for="AddDepositInput.Amount" class="form-control" id="addDepositAmountInput" />
+                        <input asp-for="AddDepositInput.Amount" type="number" step="0.01" min="0.01" required class="form-control" id="addDepositAmountInput" />
                         <span asp-validation-for="AddDepositInput.Amount" class="text-danger"></span>
                     </div>
 
@@ -605,7 +605,7 @@
 
                     <div class="mb-2">
                         <label asp-for="EditPaymentInput.Amount" class="form-label"></label>
-                        <input asp-for="EditPaymentInput.Amount" class="form-control" id="editPaymentAmountInput" />
+                        <input asp-for="EditPaymentInput.Amount" type="number" step="0.01" min="0.01" required class="form-control" id="editPaymentAmountInput" />
                         <span asp-validation-for="EditPaymentInput.Amount" class="text-danger"></span>
                     </div>
 
@@ -653,6 +653,24 @@
         const addDepositModal = addDepositModalElement ? new bootstrap.Modal(addDepositModalElement) : null;
         const editPaymentModalElement = document.getElementById('editPaymentModal');
         const editPaymentModal = editPaymentModalElement ? new bootstrap.Modal(editPaymentModalElement) : null;
+
+        function clearStaleModalBackdropArtifacts() {
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        }
+
+        // Defensive cleanup in case browser navigation leaves stale modal artifacts.
+        clearStaleModalBackdropArtifacts();
+
+        document.querySelectorAll('.modal').forEach(modalElement => {
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                if (!document.querySelector('.modal.show')) {
+                    clearStaleModalBackdropArtifacts();
+                }
+            });
+        });
 
         if (@Model.ShowAddPaymentModal.ToString().ToLowerInvariant()) {
             addPaymentModal?.show();
@@ -741,9 +759,7 @@
                 bootstrap.Modal.getOrCreateInstance(modalElement).hide();
             });
 
-            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-            document.body.classList.remove('modal-open');
-            document.body.style.removeProperty('padding-right');
+            clearStaleModalBackdropArtifacts();
         }
 
         async function replaceAppContentFromHtml(html, urlToPush) {
@@ -1014,6 +1030,9 @@
         const addPaymentUnitRoomLabelInput = document.getElementById('addPaymentUnitRoomLabel');
         const addPaymentDueDateInput = document.getElementById('addPaymentDueDate');
         const addPaymentDueDateValueInput = document.getElementById('addPaymentDueDateValue');
+        const addPaymentDateInput = document.getElementById('addPaymentDateInput');
+        const addPaymentForm = document.getElementById('addPaymentForm');
+        const addPaymentSubmitButton = document.getElementById('addPaymentSubmitButton');
 
         document.querySelectorAll('.open-add-payment-modal').forEach(button => {
             button.addEventListener('click', function () {
@@ -1025,30 +1044,69 @@
 
                 if (addPaymentRoomIdInput) addPaymentRoomIdInput.value = roomId;
                 if (addPaymentLeaseIdInput) addPaymentLeaseIdInput.value = leaseId;
-                if (addPaymentAmountInput) addPaymentAmountInput.value = Number(amount).toFixed(2);
+                if (addPaymentAmountInput) {
+                    addPaymentAmountInput.value = Number(amount).toFixed(2);
+                    addPaymentAmountInput.setCustomValidity('');
+                }
                 if (addPaymentUnitRoomLabelInput) addPaymentUnitRoomLabelInput.value = unitRoom;
                 if (addPaymentDueDateInput) addPaymentDueDateInput.value = dueDate;
                 if (addPaymentDueDateValueInput) addPaymentDueDateValueInput.value = dueDate;
+                if (addPaymentDateInput) addPaymentDateInput.value = dueDate;
+
+                if (addPaymentForm) {
+                    delete addPaymentForm.dataset.submitting;
+                }
+                if (addPaymentSubmitButton) {
+                    addPaymentSubmitButton.disabled = false;
+                    addPaymentSubmitButton.textContent = 'Save Payment';
+                }
 
                 addPaymentModal?.show();
             });
         });
 
-        const addPaymentForm = document.getElementById('addPaymentForm');
-        addPaymentForm?.addEventListener('submit', async function (e) {
-            e.preventDefault();
+        addPaymentForm?.addEventListener('submit', function (e) {
+            if (!addPaymentAmountInput) {
+                return;
+            }
 
-            const formData = new FormData(addPaymentForm);
-            const response = await fetch(addPaymentForm.getAttribute('action') || window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin'
-            });
+            const amountValue = Number(addPaymentAmountInput.value);
+            if (!Number.isFinite(amountValue) || amountValue <= 0) {
+                e.preventDefault();
+                addPaymentAmountInput.setCustomValidity('Payment amount must be greater than zero.');
+                addPaymentAmountInput.reportValidity();
+                if (addPaymentSubmitButton) {
+                    addPaymentSubmitButton.disabled = false;
+                    addPaymentSubmitButton.textContent = 'Save Payment';
+                }
+                if (addPaymentForm) {
+                    delete addPaymentForm.dataset.submitting;
+                }
+                return;
+            }
 
-            const html = await response.text();
-            await replaceAppContentFromHtml(html, window.location.href);
+            addPaymentAmountInput.setCustomValidity('');
+
+            if (addPaymentForm?.dataset.submitting === 'true') {
+                e.preventDefault();
+                return;
+            }
+
+            if (addPaymentForm) {
+                addPaymentForm.dataset.submitting = 'true';
+            }
+
+            if (addPaymentSubmitButton) {
+                addPaymentSubmitButton.disabled = true;
+                addPaymentSubmitButton.textContent = 'Saving...';
+            }
+
+            clearStaleModalBackdropArtifacts();
         });
+
+        // Keep Add Payment on normal Razor Pages POST/Redirect/GET navigation.
+        // Avoid AJAX partial content replacement here because re-injected inline scripts
+        // can leave stale client state that blocks reopening the modal on subsequent attempts.
 
         const addDepositUnitIdInput = document.getElementById('addDepositUnitId');
         const addDepositLeaseIdInput = document.getElementById('addDepositLeaseId');
@@ -1068,7 +1126,10 @@
 
                 if (addDepositUnitIdInput) addDepositUnitIdInput.value = unitId;
                 if (addDepositLeaseIdInput) addDepositLeaseIdInput.value = leaseId;
-                if (addDepositAmountInput) addDepositAmountInput.value = amount && Number(amount) > 0 ? Number(amount).toFixed(2) : '';
+                if (addDepositAmountInput) {
+                    addDepositAmountInput.value = amount && Number(amount) > 0 ? Number(amount).toFixed(2) : '';
+                    addDepositAmountInput.setCustomValidity('');
+                }
                 if (addDepositUnitLabelInput) addDepositUnitLabelInput.value = `${unitLabel} - ${propertyName}`;
                 if (addDepositDueDateInput) addDepositDueDateInput.value = dueDate;
                 if (addDepositDueDateValueInput) addDepositDueDateValueInput.value = dueDate;
@@ -1078,20 +1139,25 @@
         });
 
         const addDepositForm = document.getElementById('addDepositForm');
-        addDepositForm?.addEventListener('submit', async function (e) {
-            e.preventDefault();
+        addDepositForm?.addEventListener('submit', function (e) {
+            if (!addDepositAmountInput) {
+                return;
+            }
 
-            const formData = new FormData(addDepositForm);
-            const response = await fetch(addDepositForm.getAttribute('action') || window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin'
-            });
+            const amountValue = Number(addDepositAmountInput.value);
+            if (!Number.isFinite(amountValue) || amountValue <= 0) {
+                e.preventDefault();
+                addDepositAmountInput.setCustomValidity('Deposit amount must be greater than zero.');
+                addDepositAmountInput.reportValidity();
+                return;
+            }
 
-            const html = await response.text();
-            await replaceAppContentFromHtml(html, window.location.href);
+            addDepositAmountInput.setCustomValidity('');
+            clearStaleModalBackdropArtifacts();
         });
+
+        // Keep Add Deposit on normal Razor Pages POST/Redirect/GET navigation for consistency
+        // with Add Payment and to prevent stale modal/listener state after dynamic script reinjection.
 
         const editPaymentIdInput = document.getElementById('editPaymentId');
         const editPaymentRoomIdInput = document.getElementById('editPaymentRoomId');
@@ -1100,18 +1166,39 @@
         const editPaymentMethodInput = document.getElementById('editPaymentMethodInput');
         const editPaymentReferenceInput = document.getElementById('editPaymentReferenceInput');
         const editPaymentNotesInput = document.getElementById('editPaymentNotesInput');
+        const editPaymentForm = editPaymentIdInput?.closest('form') || null;
 
         document.querySelectorAll('.open-edit-payment-modal').forEach(button => {
             button.addEventListener('click', function () {
                 if (editPaymentIdInput) editPaymentIdInput.value = this.dataset.paymentId || '';
                 if (editPaymentRoomIdInput) editPaymentRoomIdInput.value = this.dataset.roomId || '';
-                if (editPaymentAmountInput) editPaymentAmountInput.value = Number(this.dataset.amount || 0).toFixed(2);
+                if (editPaymentAmountInput) {
+                    editPaymentAmountInput.value = Number(this.dataset.amount || 0).toFixed(2);
+                    editPaymentAmountInput.setCustomValidity('');
+                }
                 if (editPaymentDateInput) editPaymentDateInput.value = this.dataset.paymentDate || '';
                 if (editPaymentMethodInput) editPaymentMethodInput.value = this.dataset.paymentMethod || 'Cash';
                 if (editPaymentReferenceInput) editPaymentReferenceInput.value = this.dataset.reference || '';
                 if (editPaymentNotesInput) editPaymentNotesInput.value = this.dataset.notes || '';
                 editPaymentModal?.show();
             });
+        });
+
+        editPaymentForm?.addEventListener('submit', function (e) {
+            if (!editPaymentAmountInput) {
+                return;
+            }
+
+            const amountValue = Number(editPaymentAmountInput.value);
+            if (!Number.isFinite(amountValue) || amountValue <= 0) {
+                e.preventDefault();
+                editPaymentAmountInput.setCustomValidity('Amount must be greater than zero.');
+                editPaymentAmountInput.reportValidity();
+                return;
+            }
+
+            editPaymentAmountInput.setCustomValidity('');
+            clearStaleModalBackdropArtifacts();
         });
 
         const expandedRoomId = '@(Model.ExpandedRoomId?.ToString() ?? string.Empty)';

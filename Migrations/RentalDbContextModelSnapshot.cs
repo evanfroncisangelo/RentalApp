@@ -736,7 +736,7 @@ namespace RentalApp.Migrations
                         {
                             t.HasCheckConstraint("CK_UtilityCustomers_DefaultRate_NonNegative", "DefaultRate IS NULL OR DefaultRate >= 0");
 
-                            t.HasCheckConstraint("CK_UtilityCustomers_DueDay_Range", "DueDayOfMonth IS NULL OR (DueDayOfMonth >= 1 AND DueDayOfMonth <= 28)");
+                            t.HasCheckConstraint("CK_UtilityCustomers_DueDay_Range", "DueDayOfMonth IS NULL OR (DueDayOfMonth >= 1 AND DueDayOfMonth <= 31)");
 
                             t.HasCheckConstraint("CK_UtilityCustomers_DueInDays_NonNegative", "DueInDays IS NULL OR DueInDays >= 0");
                         });

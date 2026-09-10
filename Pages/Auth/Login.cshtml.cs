@@ -5,27 +5,33 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using RentalApp.Application.DTOs.Auth;
 using RentalApp.Application.Exceptions;
 using RentalApp.Application.Interfaces;
+using RentalApp.Data;
 
 namespace RentalApp.Pages.Auth;
 
 [AllowAnonymous]
-public class LoginModel(IAuthService authService) : PageModel
+public class LoginModel(IAuthService authService, RentalDbContext dbContext) : PageModel
 {
     [BindProperty]
     public LoginInputModel Input { get; set; } = new();
 
     public string? ErrorMessage { get; set; }
+    public bool ShowRegisterButton { get; set; }
 
-    public void OnGet(string? returnUrl = null)
+    public async Task OnGetAsync(string? returnUrl = null)
     {
         Input.ReturnUrl = returnUrl;
+        ShowRegisterButton = await dbContext.Users.AsNoTracking().CountAsync() <= 3;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        ShowRegisterButton = await dbContext.Users.AsNoTracking().CountAsync(cancellationToken) <= 3;
+
         if (!ModelState.IsValid)
         {
             return Page();

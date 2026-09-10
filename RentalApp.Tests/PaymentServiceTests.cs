@@ -65,6 +65,38 @@ public class PaymentServiceTests
         Assert.Equal(PaymentType.Deposit, created.PaymentType);
     }
 
+    [Fact]
+    public async Task CreateAsync_RentDuplicateSameDueDateAndAmount_ThrowsValidation()
+    {
+        await using var fixture = await RentalDbFixture.CreateAsync();
+        var service = new PaymentService(fixture.DbContext);
+
+        var dueDate = new DateTime(2026, 1, 5);
+        var paymentDate = new DateTime(2026, 1, 5);
+
+        await service.CreateAsync(new CreatePaymentRequestDto
+        {
+            LeaseId = fixture.LeaseId,
+            Amount = 5000m,
+            PaymentDate = paymentDate,
+            DueDate = dueDate,
+            PaymentType = PaymentType.Rent,
+            PaymentMethod = PaymentMethod.Cash
+        });
+
+        var ex = await Assert.ThrowsAsync<AppValidationException>(() => service.CreateAsync(new CreatePaymentRequestDto
+        {
+            LeaseId = fixture.LeaseId,
+            Amount = 5000m,
+            PaymentDate = paymentDate,
+            DueDate = dueDate,
+            PaymentType = PaymentType.Rent,
+            PaymentMethod = PaymentMethod.Cash
+        }));
+
+        Assert.Contains("already being processed", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class RentalDbFixture : IAsyncDisposable
     {
         private RentalDbFixture(RentalDbContext dbContext, int leaseId)

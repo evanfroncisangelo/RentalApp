@@ -83,6 +83,25 @@ public class PaymentService(RentalDbContext dbContext) : IPaymentService
         // Set DueDate from tenant's MoveInDate
         var dueDate = request.DueDate ?? lease.Tenant?.MoveInDate ?? DateTime.UtcNow.Date;
 
+        if (request.PaymentType == PaymentType.Rent)
+        {
+            var duplicateRentPaymentExists = await dbContext.Payments
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.LeaseId == lease.Id &&
+                    x.PaymentType == PaymentType.Rent &&
+                    x.DueDate.Date == dueDate.Date &&
+                    x.PaymentDate == paymentDate &&
+                    x.Amount == request.Amount &&
+                    x.PaymentMethod == request.PaymentMethod,
+                    cancellationToken);
+
+            if (duplicateRentPaymentExists)
+            {
+                throw new AppValidationException("A payment for this due is already being processed. Please refresh and try again.");
+            }
+        }
+
         var payment = new Payment
         {
             LeaseId = lease.Id,

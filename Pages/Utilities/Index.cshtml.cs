@@ -43,6 +43,7 @@ public class IndexModel(
     public List<SelectListItem> CategoryOptions { get; private set; } = [];
     public List<SelectListItem> UtilityTypeOptions { get; private set; } = [];
     public IReadOnlyDictionary<int, int?> TenantDefaultRoomMap { get; private set; } = new Dictionary<int, int?>();
+    public IReadOnlyDictionary<int, DateTime?> RoomMoveInDateMap { get; private set; } = new Dictionary<int, DateTime?>();
     public bool ShowModal { get; private set; }
     public bool ShowCategoryModal { get; private set; }
     public bool ShowAddPaymentModal { get; private set; }
@@ -56,6 +57,8 @@ public class IndexModel(
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
     {
         ModelState.Clear();
+        await NormalizeCustomerInputByTypeAsync(cancellationToken);
+
         if (!TryValidateModel(Input, nameof(Input)))
         {
             ShowModal = true;
@@ -218,7 +221,7 @@ public class IndexModel(
             .Select(x => new
             {
                 x.Id,
-                Label = $"{x.Unit!.Property!.Name} - {x.Unit.UnitNumber} / {x.RoomNumber}"
+                Label = $"{x.Unit!.Property!.Name} - {x.Unit.UnitNumber}"
             })
             .ToDictionaryAsync(x => x.Id, x => x.Label, cancellationToken);
 
@@ -331,9 +334,11 @@ public class IndexModel(
                     })
                     .ToList());
 
-        CustomerTypeOptions = Enum.GetValues<UtilityCustomerType>()
-            .Select(x => new SelectListItem(x.ToString(), ((int)x).ToString()))
-            .ToList();
+        CustomerTypeOptions = new List<SelectListItem>
+        {
+            new(UtilityCustomerType.Tenant.ToString(), ((int)UtilityCustomerType.Tenant).ToString()),
+            new(UtilityCustomerType.External.ToString(), ((int)UtilityCustomerType.External).ToString())
+        };
 
         var tenantOptions = await tenantService.GetAllAsync(null, cancellationToken);
         TenantOptions = [new SelectListItem("(None)", "")];
@@ -364,12 +369,16 @@ public class IndexModel(
             .Select(x => new
             {
                 x.Id,
-                Label = $"{x.Unit!.Property!.Name} - {x.Unit.UnitNumber} / {x.RoomNumber}"
+                Label = $"{x.Unit!.Property!.Name} - {x.Unit.UnitNumber}"
             })
             .ToListAsync(cancellationToken);
 
         RoomOptions = [new SelectListItem("(None)", "")];
         RoomOptions.AddRange(roomOptions.Select(x => new SelectListItem(x.Label, x.Id.ToString())));
+
+        RoomMoveInDateMap = activeLeases
+            .GroupBy(x => x.RoomId)
+            .ToDictionary(g => g.Key, g => (DateTime?)g.First().StartDate.Date);
 
         Categories = await utilityCategoryService.GetAllAsync(null, cancellationToken);
 
@@ -393,6 +402,66 @@ public class IndexModel(
         }
     }
 
+    private async Task NormalizeCustomerInputByTypeAsync(CancellationToken cancellationToken)
+    {
+        Input.Name = (Input.Name ?? string.Empty).Trim();
+
+        if (Input.CustomerType == UtilityCustomerType.Tenant)
+        {
+            Input.TenantId = null;
+
+            if (!Input.RoomId.HasValue)
+            {
+                ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.RoomId)}", "Unit is required for tenant utility customer.");
+                return;
+            }
+
+            var roomLookup = await dbContext.Rooms
+                .AsNoTracking()
+                .Include(x => x.Unit)
+                .ThenInclude(x => x!.Property)
+                .Where(x => x.Id == Input.RoomId.Value)
+                .Select(x => new
+                {
+                    Label = $"{x.Unit!.Property!.Name} - {x.Unit.UnitNumber}",
+                    UnitId = x.UnitId
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (roomLookup is null)
+            {
+                ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.RoomId)}", "Selected unit is invalid.");
+                return;
+            }
+
+            Input.Name = roomLookup.Label;
+
+            var tenantMoveInDate = await dbContext.Tenants
+                .AsNoTracking()
+                .Where(x => x.IsActive && x.UnitId == roomLookup.UnitId && x.MoveInDate.HasValue)
+                .OrderBy(x => x.MoveInDate)
+                .Select(x => x.MoveInDate)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!Input.UtilityStartDate.HasValue && tenantMoveInDate.HasValue)
+            {
+                Input.UtilityStartDate = tenantMoveInDate.Value.Date;
+            }
+        }
+        else
+        {
+            Input.TenantId = null;
+            Input.RoomId = null;
+
+            if (string.IsNullOrWhiteSpace(Input.Name))
+            {
+                ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.Name)}", "Customer name is required.");
+            }
+        }
+
+        Input.DueDayOfMonth = Input.UtilityStartDate?.Day;
+    }
+
     public class UtilityCustomerInputModel
     {
         public int Id { get; set; }
@@ -400,7 +469,7 @@ public class IndexModel(
         [Required]
         public string Name { get; set; } = string.Empty;
 
-        public UtilityCustomerType CustomerType { get; set; } = UtilityCustomerType.Other;
+        public UtilityCustomerType CustomerType { get; set; } = UtilityCustomerType.Tenant;
         public int? TenantId { get; set; }
         public int? RoomId { get; set; }
         public int? UtilityCategoryId { get; set; }
@@ -411,7 +480,6 @@ public class IndexModel(
         [Range(0.01, 1000000000)]
         public decimal? AmountToPay { get; set; }
 
-        [Range(1, 28)]
         public int? DueDayOfMonth { get; set; }
     }
 
